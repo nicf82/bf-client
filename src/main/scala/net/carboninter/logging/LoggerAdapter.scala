@@ -1,7 +1,7 @@
 package net.carboninter.logging
 
 import org.slf4j.{Logger, LoggerFactory}
-import zio._
+import zio.*
 
 trait LoggerAdapter {
 
@@ -63,10 +63,10 @@ object LoggerAdapter {
 case class LiveLoggerAdapter() extends LoggerAdapter {
 
   def log(f: String => Unit)(string: String)(implicit logger: Logger): IO[Nothing, Unit] =
-  ZIO.succeed(f(string))
+    ZIO.succeed(f(string))
 
   def log(f: (String, Throwable) => Unit)(string: String, throwable: Throwable)(implicit logger: Logger): IO[Nothing, Unit] =
-  ZIO.succeed(f(string, throwable))
+    ZIO.succeed(f(string, throwable))
 
   def trace(string: String)(implicit logger: Logger): IO[Nothing, Unit] = log(logger.trace(_))(string)
   def debug(string: String)(implicit logger: Logger): IO[Nothing, Unit] = log(logger.debug(_))(string)

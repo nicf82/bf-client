@@ -1,47 +1,31 @@
 package net.carboninter
 
 import net.carboninter.bfconnector.BfConnector
+import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter
-import net.carboninter.models.Credentials
-import zio.Clock._
-import zio.stream._
-import zio._
+import zio.stream.*
+import zio.*
 
-import java.io.IOException
-import java.time.Instant
 import java.util.concurrent.TimeUnit
-import org.slf4j.LoggerFactory
+import org.slf4j.{Logger, LoggerFactory}
 
 object Runner extends ZIOAppDefault {
 
-  implicit val logger = LoggerFactory.getLogger(getClass)
+  implicit val _: Logger = LoggerFactory.getLogger(getClass)
 
-  val credRef: UIO[Ref[Credentials]] = Ref.make[Credentials](Credentials("not set", Instant.EPOCH))
+  val stream: ZStream[Environment with BfConnector with LoggerAdapter with AppConfigService, Throwable, Unit] =
+    ZStream.tick(Duration(5, TimeUnit.SECONDS))
+      .mapZIO { _ =>
+        ZIO.serviceWithZIO[BfConnector](_.getCredentials)
+      }
+      .mapZIO { credentials =>
+        LoggerAdapter.info(credentials.toString)
+      }
 
-  val stream: ZStream[Console with BfConnector with LoggerAdapter with Clock, IOException, Unit] = ZStream.fromZIO(BfConnector.getCredRef())
-    .flatMap { ref =>
-      ZStream.tick(Duration(1, TimeUnit.SECONDS)).map(_ => ref)
-    }
-    .mapZIO(ref => instant.zip(ZIO.succeed(ref)))
-    .mapZIO { case (now, ref) =>
+  val program: ZIO[Environment with BfConnector with LoggerAdapter with AppConfigService, Throwable, Long] = stream.runCount
 
-      for {
-        creds <- ref.get
-        z     <- if (now.isBefore(creds.expires)) ZIO.succeed(creds)
-        else for {
-          _  <- LoggerAdapter.info("EXPIRED! Getting new creds")
-          nc <- BfConnector.refreshCredentials()
-          c  <- ref.set(nc).as(nc)
-        } yield c
-      } yield z
-    }
-    .mapZIO { creds: Credentials =>
-      LoggerAdapter.info(creds.toString)
-    }
-
-  override def run: ZIO[ZEnv with ZIOAppArgs, Any, Any] = stream
-    .provideSomeLayer(BfConnector.live ++ LoggerAdapter.live)
+//  override def run: ZIO[ZEnv with ZIOAppArgs, Any, Any] = program
+  def run: ZIO[Environment, Any, Any] = program
     //.provideLayer(Clock.live ++ Console.live ++ BfConnector.live ++ LoggerAdapter.live)  //Also works
-    .runCount
-    .exitCode
+    .provideSome[Environment](BfConnector.live, LoggerAdapter.live, AppConfigService.live)
 }
