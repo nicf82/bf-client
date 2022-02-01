@@ -10,13 +10,17 @@ val logbackVersion         = "1.2.10"
 val logbackEncoderVersion  = "6.6"
 val asyncHttpClientVersion = "3.3.18"
 val zioJsonVersion         = "0.3.0-RC2"
+val circeVersion           = "0.14.1"
 
 libraryDependencies += "dev.zio" %% "zio"                  % zioVersion
 libraryDependencies += "dev.zio" %% "zio-streams"          % zioVersion
-libraryDependencies += "dev.zio" %% "zio-json"             % zioJsonVersion
 libraryDependencies += "dev.zio" %% "zio-config"           % zioConfigVersion
 libraryDependencies += "dev.zio" %% "zio-config-magnolia"  % zioConfigVersion
 libraryDependencies += "dev.zio" %% "zio-config-typesafe"  % zioConfigVersion
+
+libraryDependencies += "io.circe" %% "circe-core"          % circeVersion
+libraryDependencies += "io.circe" %% "circe-generic"       % circeVersion
+libraryDependencies += "io.circe" %% "circe-parser"        % circeVersion
 
 libraryDependencies += "com.softwaremill.sttp.client3" %%
   "async-http-client-backend-future" % asyncHttpClientVersion
@@ -25,3 +29,6 @@ libraryDependencies += "ch.qos.logback"       % "logback-core"             % log
 libraryDependencies += "ch.qos.logback"       % "logback-classic"          % logbackVersion
 libraryDependencies += "net.logstash.logback" % "logstash-logback-encoder" % logbackEncoderVersion
 
+Compile / guardrailTasks := List(
+  ScalaModels(file("ESASwaggerSchema.json"))
+)

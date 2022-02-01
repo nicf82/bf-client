@@ -8,7 +8,9 @@ import sttp.client3.asynchttpclient.future.AsyncHttpClientFutureBackend
 import sttp.client3.{SttpBackend, basicRequest}
 import sttp.model.Header
 import zio.*
-import zio.json.*
+import io.circe._
+import io.circe.syntax._
+import io.circe.generic.auto._
 
 import scala.concurrent.Future
 
@@ -57,8 +59,8 @@ case class LiveBfConnector(ref: Ref.Synchronized[Credentials], appConfigService:
     res <- ZIO.fromFuture(implicit ec => req.send(backend))
     _ <- loggerAdapter.debug(res.toString)
     body <-  ZIO.fromEither(res.body).mapError(new RuntimeException(_))
-    _ <- loggerAdapter.debug(body.toString)
-    credentialsP <- ZIO.fromEither(body.fromJson[Credentials.Payload]).mapError(new RuntimeException(_))
+    _ <- loggerAdapter.debug(body)
+    credentialsP <- ZIO.fromEither(parser.decode[Credentials.Payload](body)).mapError(new RuntimeException(_))
     now <- Clock.instant
     credentials = Credentials(credentialsP, now.plusSeconds(300))
     _ <- loggerAdapter.error(credentials.toString)
