@@ -34,6 +34,7 @@ libraryDependencies += "dev.zio" %% "zio-test-sbt"         % zioVersion % Test
 
 testFrameworks += TestFramework("zio.test.sbt.ZTestFramework")
 
-Compile / guardrailTasks := List(
-  ScalaModels(file("ESASwaggerSchema.json"))
-)
+//Commented out because the models generated are not perfect, so they are fixed then copied into src
+//Compile / guardrailTasks := List(
+//  ScalaModels(file("ESASwaggerSchema.json"))
+//)

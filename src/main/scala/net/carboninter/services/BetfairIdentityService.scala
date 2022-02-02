@@ -41,7 +41,7 @@ case class LiveBetfairIdentityService(ref: Ref.Synchronized[Credentials], clock:
     credentials <- ref.updateSomeAndGetZIO {
       case credentials if credentials.expires.isBefore(now) => fetchCredentials
     }
-    _ = println("Clock is at " + now + " creds expired at " + credentials.expires)
+    _ <- loggerAdapter.warn("Clock is at " + now + " creds expire at " + credentials.expires)
   } yield credentials
 
   private val fetchCredentials: Task[Credentials] = for {
