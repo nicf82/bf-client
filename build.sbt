@@ -29,6 +29,11 @@ libraryDependencies += "ch.qos.logback"       % "logback-core"             % log
 libraryDependencies += "ch.qos.logback"       % "logback-classic"          % logbackVersion
 libraryDependencies += "net.logstash.logback" % "logstash-logback-encoder" % logbackEncoderVersion
 
+libraryDependencies += "dev.zio" %% "zio-test"             % zioVersion % Test
+libraryDependencies += "dev.zio" %% "zio-test-sbt"         % zioVersion % Test
+
+testFrameworks += TestFramework("zio.test.sbt.ZTestFramework")
+
 Compile / guardrailTasks := List(
   ScalaModels(file("ESASwaggerSchema.json"))
 )
