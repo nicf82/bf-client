@@ -41,11 +41,9 @@ case class LiveBetfairIdentityService(ref: Ref.Synchronized[Credentials], clock:
     credentials <- ref.updateSomeAndGetZIO {
       case credentials if credentials.expires.isBefore(now) => fetchCredentials
     }
-    _ <- loggerAdapter.warn("Clock is at " + now + " creds expire at " + credentials.expires)
   } yield credentials
 
   private val fetchCredentials: Task[Credentials] = for {
-    _            <- loggerAdapter.debug("Fetching new credentials")
     conf         <- appConfigService.getAppConfig.map(_.betfair)
     uri          <- ZIO.attempt(sttp.model.Uri.unsafeParse("https://identitysso.betfair.com/api/login"))
     headers       = Header("Accept", "application/json") ::
@@ -64,7 +62,7 @@ case class LiveBetfairIdentityService(ref: Ref.Synchronized[Credentials], clock:
     credentialsP <- ZIO.fromEither(parser.decode[Credentials.Payload](body)).mapError(new RuntimeException(_))
     now          <- clock.instant
     credentials   = Credentials(credentialsP, now.plusSeconds(300))
-    _            <- loggerAdapter.debug(credentials.toString)
+    _            <- loggerAdapter.debug(s"Fetched new credentials: token=${credentials.payload.token}, expires=${credentials.expires}")
   } yield credentials
 
 }

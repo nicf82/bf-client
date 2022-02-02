@@ -16,7 +16,8 @@ object BetfairStreamSpec extends DefaultRunnableSpec:
 
     val program: ZIO[ZEnv & BetfairStreamService, Throwable, Unit] = for {
       streamService <- ZIO.service[BetfairStreamService]
-      _ <- streamService.stream.runDrain
+      (publishQueue, responseStream) <- streamService.stream
+      _ <- responseStream.runDrain
     } yield ()
 
     val result = program.provideSomeLayer[ZEnv & AppConfigService & LoggerAdapter & BetfairIdentityService](BetfairStreamService.live)

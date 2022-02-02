@@ -7,9 +7,9 @@ import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter
 import net.carboninter.models.Credentials
 import org.slf4j.{Logger, LoggerFactory}
-import swagger.definitions.StatusMessage.StatusCode
+import swagger.definitions.StatusMessage.{ErrorCode, StatusCode}
 import swagger.definitions.{AuthenticationMessage, ConnectionMessage, HeartbeatMessage, MarketChangeMessage, OrderChangeMessage, RequestMessage, ResponseMessage, StatusMessage}
-import zio.*
+import zio.{UIO, *}
 import zio.Duration.*
 import zio.stream.*
 
@@ -19,7 +19,7 @@ import javax.net.SocketFactory
 import javax.net.ssl.{SSLSocket, SSLSocketFactory}
 
 trait BetfairStreamService:
-  def stream: ZStream[Clock, Throwable, ResponseMessage]
+  def stream: UIO[(Queue[RequestMessage], ZStream[Clock & Random, Throwable, ResponseMessage])]
 
 object BetfairStreamService:
   val live: URLayer[AppConfigService & LoggerAdapter & BetfairIdentityService, BetfairStreamService] =
@@ -38,59 +38,65 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
   } yield ()
 
 
-  override val stream: ZStream[Clock, Throwable, ResponseMessage] = ZStream.unwrap {
+  override val stream: UIO[(Queue[RequestMessage], ZStream[Clock & Random, Throwable, ResponseMessage])] = {
 
-    appConfigService.getAppConfig.map(_.betfair) map { config =>
+    (ZQueue.unbounded[RequestMessage] <*> appConfigService.getAppConfig.map(_.betfair)) map { case (publishQueue, config) =>
 
       val managedSocket = ZManaged
         .acquireReleaseWith(ZIO.attempt(sslSocketFactory.createSocket(config.streamApi.host, config.streamApi.port))) { s =>
           for {
-            _ <- loggerAdapter.warn("Closing betfair stream socket")
+            _ <- loggerAdapter.info("Closing betfair stream socket")
             _ <- ZIO.succeed(s.getInputStream.close())
             _ <- ZIO.succeed(s.getOutputStream.close())
             _ <- ZIO.succeed(s.close())
           } yield ()
         }
 
-      ZStream
-        .managed(managedSocket)
-        .mapZIO { socket =>
+      val responseStream = (ZStream.fromZIO(Ref.make(0)) <*> ZStream.managed(managedSocket))
+        .mapZIO { case (counter, socket) =>
+          val requests = ZStream.fromQueueWithShutdown(publishQueue)
+          val heartbeat = ZStream.tick(15.seconds).drop(1).mapZIO(_ => counter.getAndUpdate(_ + 1).map(i => HeartbeatMessage(Some(i))))
           for {
-            queue <- ZQueue.unbounded[RequestMessage]
-            requests = ZStream.fromQueueWithShutdown(queue)
-            heartbeat = ZStream.tick(15.seconds).drop(1).map(_ => HeartbeatMessage(Some(1)))
             mergedStream <- (requests merge heartbeat).runForeach { m =>
               publisher(socket.getOutputStream)(m)
             }.fork
-          } yield (queue, ZStream.fromInputStream(socket.getInputStream))
-
-        }.flatMap {
-          case (publishQueue, responseStream) =>
-            responseStream
-            .via(ZPipeline.utf8Decode >>> ZPipeline.splitLines)
+          } yield (counter, ZStream.fromInputStream(socket.getInputStream))
+        }.flatMap { case (counter, stream) =>
+          stream.via(ZPipeline.utf8Decode >>> ZPipeline.splitLines)
             .tap(m => loggerAdapter.debug("Received: " + m))
             .map(decode[ResponseMessage])
             .mapZIO(e => ZIO.fromEither(e).mapError(_.getCause))
             .mapZIO {
+
               case msg@ConnectionMessage(id, connectionId) => for {
                 creds <- betfairIdentityService.getCredentials
-                _ <- loggerAdapter.info("Connection message: " + msg)
-                m = AuthenticationMessage(Some(1), Some(creds.payload.token), Some(config.appKey))
+                id <- counter.getAndUpdate(_ + 1)
+                m = AuthenticationMessage(Some(id), Some(creds.payload.token), Some(config.appKey))
                 _ <- publishQueue.offer(m)
               } yield msg
-              case msg@StatusMessage(id, connectionsAvailable, errorMessage, errorCode, connectionId, Some(connectionClosed), Some(StatusCode.Failure)) =>
+
+              //All errors apart from SUBSCRIPTION_LIMIT_EXCEEDED close the connection
+              case msg@StatusMessage(id, connectionsAvailable, errorMessage, errorCode, connectionId, Some(false), Some(StatusCode.Failure)) =>
                 for {
-                  _ <- loggerAdapter.error(s"Terminated connection? $connectionClosed because: $errorCode " + errorMessage)
+                  _ <- loggerAdapter.warn(s"$errorCode: $errorMessage - (this does not terminate the connection)")
                 } yield msg
+
+              case msg@StatusMessage(id, connectionsAvailable, errorMessage, errorCode, connectionId, Some(true), Some(StatusCode.Failure)) =>
+                for {
+                  _ <- loggerAdapter.error(s"$errorCode: $errorMessage - (terminating the connection): ")
+                } yield msg
+
               case msg@StatusMessage(id, connectionsAvailable, errorMessage, errorCode, connectionId, Some(connectionClosed), Some(StatusCode.Success)) =>
                 for {
-                  _ <- loggerAdapter.info(s"Status update: Connection is " + (if (connectionClosed) "closed" else "open"))
+                  _ <- loggerAdapter.trace(s"Status update: Connection is " + (if (connectionClosed) "closed" else "open"))
                 } yield msg
+
               case msg => ZIO.succeed(msg)
               //          case msg@MarketChangeMessage(id, ct, clk, heartbeatMs, pt, initialClk, mc, conflateMs, segmentType, status) => msg
               //          case msg@OrderChangeMessage(id, ct, clk, heartbeatMs, pt, oc, initialClk, conflateMs, segmentType, status) => msg
 
             }
         }
+      (publishQueue, responseStream)
     }
   }
