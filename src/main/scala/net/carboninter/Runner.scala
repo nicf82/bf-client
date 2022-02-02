@@ -15,7 +15,8 @@ object Runner extends ZIOAppDefault {
 
   val program: ZIO[ZEnv & BetfairStreamService, Throwable, Unit] = for {
     streamService <- ZIO.service[BetfairStreamService]
-    (publishQueue, responseStream) <- streamService.stream
+    managedSocket = streamService.managedSocket
+    (publishQueue, responseStream) <- streamService.stream(managedSocket)
     _ <- responseStream.runDrain
   } yield ()
 

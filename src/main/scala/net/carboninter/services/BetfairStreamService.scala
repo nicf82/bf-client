@@ -5,7 +5,7 @@ import io.circe.parser.*
 import io.circe.syntax.*
 import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter
-import net.carboninter.models.Credentials
+import net.carboninter.models.*
 import org.slf4j.{Logger, LoggerFactory}
 import swagger.definitions.StatusMessage.{ErrorCode, StatusCode}
 import swagger.definitions.{AuthenticationMessage, ConnectionMessage, HeartbeatMessage, MarketChangeMessage, OrderChangeMessage, RequestMessage, ResponseMessage, StatusMessage}
@@ -19,7 +19,8 @@ import javax.net.SocketFactory
 import javax.net.ssl.{SSLSocket, SSLSocketFactory}
 
 trait BetfairStreamService:
-  def stream: UIO[(Queue[RequestMessage], ZStream[Clock & Random, Throwable, ResponseMessage])]
+  def managedSocket: TaskManaged[SocketDescriptor]
+  def stream(socketDescriptor: TaskManaged[SocketDescriptor]): UIO[(Queue[RequestMessage], ZStream[Clock & Random, Throwable, ResponseMessage])]
 
 object BetfairStreamService:
   val live: URLayer[AppConfigService & LoggerAdapter & BetfairIdentityService, BetfairStreamService] =
@@ -38,29 +39,36 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
   } yield ()
 
 
-  override val stream: UIO[(Queue[RequestMessage], ZStream[Clock & Random, Throwable, ResponseMessage])] = {
+  val managedSocket: TaskManaged[SocketDescriptor] = {
+    def acquire: ZIO[Any, Throwable, SocketDescriptor] = for {
+      config <- appConfigService.getAppConfig.map(_.betfair)
+      socket <- ZIO.attempt(sslSocketFactory.createSocket(config.streamApi.host, config.streamApi.port))
+    } yield SSLSocketDescriptor(socket)
 
-    (ZQueue.unbounded[RequestMessage] <*> appConfigService.getAppConfig.map(_.betfair)) map { case (publishQueue, config) =>
+    def release(s: SocketDescriptor): ZIO[Any, Nothing, Unit] = for {
+      _ <- loggerAdapter.info("Closing betfair stream socket")
+      _ <- s.close
+    } yield ()
 
-      val managedSocket = ZManaged
-        .acquireReleaseWith(ZIO.attempt(sslSocketFactory.createSocket(config.streamApi.host, config.streamApi.port))) { s =>
-          for {
-            _ <- loggerAdapter.info("Closing betfair stream socket")
-            _ <- ZIO.succeed(s.getInputStream.close())
-            _ <- ZIO.succeed(s.getOutputStream.close())
-            _ <- ZIO.succeed(s.close())
-          } yield ()
-        }
+    ZManaged.acquireReleaseWith(acquire)(release)
+  }
 
-      val responseStream = (ZStream.fromZIO(Ref.make(0)) <*> ZStream.managed(managedSocket))
+  override def stream(socketDescriptor: TaskManaged[SocketDescriptor]): UIO[(Queue[RequestMessage], ZStream[Clock & Random, Throwable, ResponseMessage])] = {
+
+    for {
+      publishQueue <- ZQueue.unbounded[RequestMessage]
+      config <- appConfigService.getAppConfig.map(_.betfair)
+    } yield {
+
+      val responseStream = (ZStream.fromZIO(Ref.make(0)) <*> ZStream.managed(socketDescriptor))
         .mapZIO { case (counter, socket) =>
           val requests = ZStream.fromQueueWithShutdown(publishQueue)
           val heartbeat = ZStream.tick(15.seconds).drop(1).mapZIO(_ => counter.getAndUpdate(_ + 1).map(i => HeartbeatMessage(Some(i))))
           for {
             mergedStream <- (requests merge heartbeat).runForeach { m =>
-              publisher(socket.getOutputStream)(m)
+              publisher(socket.outputStream)(m)
             }.fork
-          } yield (counter, ZStream.fromInputStream(socket.getInputStream))
+          } yield (counter, ZStream.fromInputStream(socket.inputStream))
         }.flatMap { case (counter, stream) =>
           stream.via(ZPipeline.utf8Decode >>> ZPipeline.splitLines)
             .tap(m => loggerAdapter.debug("Received: " + m))

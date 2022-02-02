@@ -1,16 +1,16 @@
 package net.carboninter.services
 
-import net.carboninter.appconf.AppConfigService
+import net.carboninter.appconf.{AppConfigService, Betfair}
 import net.carboninter.logging.LoggerAdapter
 import net.carboninter.models.Credentials
 import org.slf4j.*
 import sttp.client3.asynchttpclient.future.AsyncHttpClientFutureBackend
 import sttp.client3.{SttpBackend, basicRequest}
-import sttp.model.Header
+import sttp.model.{Header, Uri}
 import zio.*
-import io.circe._
-import io.circe.syntax._
-import io.circe.generic.auto._
+import io.circe.*
+import io.circe.syntax.*
+import io.circe.generic.auto.*
 
 import scala.concurrent.Future
 
@@ -43,26 +43,29 @@ case class LiveBetfairIdentityService(ref: Ref.Synchronized[Credentials], clock:
     }
   } yield credentials
 
+  //TODO - implement keep alive within every 12 hours: https://docs.developer.betfair.com/pages/viewpage.action?pageId=3834909#Login&SessionManagement-KeepAlive
+  
   private val fetchCredentials: Task[Credentials] = for {
     conf         <- appConfigService.getAppConfig.map(_.betfair)
-    uri          <- ZIO.attempt(sttp.model.Uri.unsafeParse("https://identitysso.betfair.com/api/login"))
-    headers       = Header("Accept", "application/json") ::
-                      Header("X-Application", conf.appKey) ::
-                      Header("Content-Type", "application/x-www-form-urlencoded") ::
-                      uri.host.toList.map(h => Header("Host", h))
-    req          <- ZIO.attempt  {
-                      basicRequest.headers(headers:_*)
-                        .body(s"username=${conf.userName}&password=${conf.password}")
-                        .post(uri)
-                    }
-    _            <- ZIO.foreach(req.headers)(h => loggerAdapter.trace(h.toString))
-    res          <- ZIO.fromFuture(implicit ec => req.send(backend))
-    body         <-  ZIO.fromEither(res.body).mapError(new RuntimeException(_))
-    _            <- loggerAdapter.trace(body)
+    body         <- postRequest(conf.identityApi.uri, s"username=${conf.userName}&password=${conf.password}", conf.appKey)
     credentialsP <- ZIO.fromEither(parser.decode[Credentials.Payload](body)).mapError(new RuntimeException(_))
     now          <- clock.instant
     credentials   = Credentials(credentialsP, now.plusSeconds(300))
     _            <- loggerAdapter.debug(s"Fetched new credentials: token=${credentials.payload.token}, expires=${credentials.expires}")
   } yield credentials
 
+  def postRequest(uri: String, body: String, appKey: String): Task[String] = for {
+    headers      <-  ZIO.succeed(List("Accept"-> "application/json", "X-Application"-> appKey,
+                          "Content-Type" -> "application/x-www-form-urlencoded").map(Header(_, _)))
+    uri          <- ZIO.attempt(sttp.model.Uri.unsafeParse(uri))
+    req          <- ZIO.attempt  {
+                      basicRequest.headers(headers:_*)
+                        .body(body)
+                        .post(uri)
+                    }
+    _            <- ZIO.foreach(req.headers)(h => loggerAdapter.trace(h.toString))
+    res          <- ZIO.fromFuture(implicit ec => req.send(backend))
+    body         <- ZIO.fromEither(res.body).mapError(new RuntimeException(_))
+    _            <- loggerAdapter.trace(body)
+  } yield body
 }
