@@ -4,16 +4,18 @@
  */
 package swagger.definitions
 
-import cats.syntax.either._
-import io.circe._
-import io.circe.syntax._
-import cats.implicits._
-import _root_.swagger.Implicits._
-case class RunnerChange(tv: Option[Double] = None, batb: Option[Vector[Vector[Double]]] = None, spb: Option[Vector[Vector[Double]]] = None, bdatl: Option[Vector[Vector[Double]]] = None, trd: Option[Vector[Vector[Double]]] = None, spf: Option[Double] = None, ltp: Option[Double] = None, atb: Option[Vector[Vector[Double]]] = None, spl: Option[Vector[Vector[Double]]] = None, spn: Option[Double] = None, atl: Option[Vector[Vector[Double]]] = None, batl: Option[Vector[Vector[Double]]] = None, id: Option[Long] = None, hc: Option[Double] = None, bdatb: Option[Vector[Vector[Double]]] = None)
+import cats.syntax.either.*
+import io.circe.*
+import io.circe.syntax.*
+import cats.implicits.*
+import _root_.swagger.Implicits.*
+
+import scala.util.Try
+case class RunnerChange(tv: Option[Double] = None, batb: Option[Vector[Vector[Double]]] = None, spb: Option[Vector[Vector[Double]]] = None, bdatl: Option[Vector[Vector[Double]]] = None, trd: Option[Vector[Vector[Double]]] = None, spf: Option[String] = None, ltp: Option[Double] = None, atb: Option[Vector[Vector[Double]]] = None, spl: Option[Vector[Vector[Double]]] = None, spn: Option[Double] = None, atl: Option[Vector[Vector[Double]]] = None, batl: Option[Vector[Vector[Double]]] = None, id: Option[Long] = None, hc: Option[Double] = None, bdatb: Option[Vector[Vector[Double]]] = None)
 object RunnerChange {
   implicit val encodeRunnerChange: _root_.io.circe.Encoder.AsObject[RunnerChange] = {
     val readOnlyKeys = _root_.scala.Predef.Set[_root_.scala.Predef.String]()
     _root_.io.circe.Encoder.AsObject.instance[RunnerChange](a => _root_.io.circe.JsonObject.fromIterable(_root_.scala.Vector(("tv", a.tv.asJson), ("batb", a.batb.asJson), ("spb", a.spb.asJson), ("bdatl", a.bdatl.asJson), ("trd", a.trd.asJson), ("spf", a.spf.asJson), ("ltp", a.ltp.asJson), ("atb", a.atb.asJson), ("spl", a.spl.asJson), ("spn", a.spn.asJson), ("atl", a.atl.asJson), ("batl", a.batl.asJson), ("id", a.id.asJson), ("hc", a.hc.asJson), ("bdatb", a.bdatb.asJson)))).mapJsonObject(_.filterKeys(key => !(readOnlyKeys contains key)))
   }
-  implicit val decodeRunnerChange: _root_.io.circe.Decoder[RunnerChange] = new _root_.io.circe.Decoder[RunnerChange] { final def apply(c: _root_.io.circe.HCursor): _root_.io.circe.Decoder.Result[RunnerChange] = for (v0 <- c.downField("tv").as[Option[Double]]; v1 <- c.downField("batb").as[Option[Vector[Vector[Double]]]]; v2 <- c.downField("spb").as[Option[Vector[Vector[Double]]]]; v3 <- c.downField("bdatl").as[Option[Vector[Vector[Double]]]]; v4 <- c.downField("trd").as[Option[Vector[Vector[Double]]]]; v5 <- c.downField("spf").as[Option[Double]]; v6 <- c.downField("ltp").as[Option[Double]]; v7 <- c.downField("atb").as[Option[Vector[Vector[Double]]]]; v8 <- c.downField("spl").as[Option[Vector[Vector[Double]]]]; v9 <- c.downField("spn").as[Option[Double]]; v10 <- c.downField("atl").as[Option[Vector[Vector[Double]]]]; v11 <- c.downField("batl").as[Option[Vector[Vector[Double]]]]; v12 <- c.downField("id").as[Option[Long]]; v13 <- c.downField("hc").as[Option[Double]]; v14 <- c.downField("bdatb").as[Option[Vector[Vector[Double]]]]) yield RunnerChange(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14) }
+  implicit val decodeRunnerChange: _root_.io.circe.Decoder[RunnerChange] = new _root_.io.circe.Decoder[RunnerChange] { final def apply(c: _root_.io.circe.HCursor): _root_.io.circe.Decoder.Result[RunnerChange] = for (v0 <- c.downField("tv").as[Option[Double]]; v1 <- c.downField("batb").as[Option[Vector[Vector[Double]]]]; v2 <- c.downField("spb").as[Option[Vector[Vector[Double]]]]; v3 <- c.downField("bdatl").as[Option[Vector[Vector[Double]]]]; v4 <- c.downField("trd").as[Option[Vector[Vector[Double]]]]; v5 <- c.downField("spf").as[Option[String]]; v6 <- c.downField("ltp").as[Option[Double]]; v7 <- c.downField("atb").as[Option[Vector[Vector[Double]]]]; v8 <- c.downField("spl").as[Option[Vector[Vector[Double]]]]; v9 <- c.downField("spn").as[Option[Double]]; v10 <- c.downField("atl").as[Option[Vector[Vector[Double]]]]; v11 <- c.downField("batl").as[Option[Vector[Vector[Double]]]]; v12 <- c.downField("id").as[Option[Long]]; v13 <- c.downField("hc").as[Option[Double]]; v14 <- c.downField("bdatb").as[Option[Vector[Vector[Double]]]]) yield RunnerChange(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14) }
 }

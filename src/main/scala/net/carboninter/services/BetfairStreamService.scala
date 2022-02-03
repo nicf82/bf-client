@@ -3,10 +3,12 @@ package net.carboninter.services
 import io.circe.*
 import io.circe.parser.*
 import io.circe.syntax.*
+import net.carboninter.Runner.buildSubscription
 import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter
 import net.carboninter.models.*
 import org.slf4j.{Logger, LoggerFactory}
+import swagger.definitions.StatusMessage.StatusCode.Success
 import swagger.definitions.StatusMessage.{ErrorCode, StatusCode}
 import swagger.definitions.{AuthenticationMessage, ConnectionMessage, HeartbeatMessage, MarketChangeMessage, OrderChangeMessage, RequestMessage, ResponseMessage, StatusMessage}
 import zio.{UIO, *}
@@ -16,11 +18,11 @@ import zio.stream.*
 import java.io.{IOException, InputStream, OutputStream}
 import java.net.Socket
 import javax.net.SocketFactory
-import javax.net.ssl.{SSLSocket, SSLSocketFactory}
+import javax.net.ssl.{SSLParameters, SSLSocket, SSLSocketFactory}
 
 trait BetfairStreamService:
   def managedSocket: TaskManaged[SocketDescriptor]
-  def stream(socketDescriptor: TaskManaged[SocketDescriptor]): UIO[(RequestMessage => UIO[Boolean], ZStream[Clock, Throwable, ResponseMessage])]
+  def stream(socketDescriptor: TaskManaged[SocketDescriptor], counter: Ref[Int]): UIO[(RequestMessage => UIO[Boolean], ZStream[Clock, Throwable, ResponseMessage])]
 
 object BetfairStreamService:
   val live: URLayer[AppConfigService & LoggerAdapter & BetfairIdentityService, BetfairStreamService] =
@@ -42,7 +44,13 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
   val managedSocket: TaskManaged[SocketDescriptor] = {
     def acquire: ZIO[Any, Throwable, SocketDescriptor] = for {
       config <- appConfigService.getAppConfig.map(_.betfair)
-      socket <- ZIO.attempt(sslSocketFactory.createSocket(config.streamApi.host, config.streamApi.port))
+      socket <- ZIO.attempt {
+        val socket = sslSocketFactory.createSocket(config.streamApi.host, config.streamApi.port).asInstanceOf[SSLSocket]
+        socket.startHandshake()
+        socket.setReceiveBufferSize(1024 * 1000 * 2) //shaves about 20s off firehose image.
+        socket.setSoTimeout(30*1000);
+        socket
+      }
     } yield SSLSocketDescriptor(socket)
 
     def release(s: SocketDescriptor): ZIO[Any, Nothing, Unit] = for {
@@ -53,17 +61,20 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
     ZManaged.acquireReleaseWith(acquire)(release)
   }
 
-  override def stream(socketDescriptor: TaskManaged[SocketDescriptor]): UIO[(RequestMessage => UIO[Boolean], ZStream[Clock, Throwable, ResponseMessage])] = {
+  override def stream(socketDescriptor: TaskManaged[SocketDescriptor], counter: Ref[Int]): UIO[(RequestMessage => UIO[Boolean], ZStream[Clock, Throwable, ResponseMessage])] = {
 
     for {
       publishQueue <- ZQueue.unbounded[RequestMessage]
       config <- appConfigService.getAppConfig.map(_.betfair)
     } yield {
 
-      val responseStream = (ZStream.fromZIO(Ref.make(0)) <*> ZStream.managed(socketDescriptor))
-        .mapZIO { case (counter, socket) =>
+      val responseStream = ZStream.managed(socketDescriptor)
+        .mapZIO { socket =>
           val requests = ZStream.fromQueueWithShutdown(publishQueue)
-          val heartbeat = ZStream.tick(15.seconds).drop(1).mapZIO(_ => counter.getAndUpdate(_ + 1).map(i => HeartbeatMessage(Some(i))))
+          val heartbeat = if(config.heartbeatLocal > 0)
+              ZStream.tick(config.heartbeatLocal.millis).drop(1).mapZIO(_ => counter.getAndUpdate(_ + 1).map(i => HeartbeatMessage(Some(i))))
+            else
+              ZStream.empty
           for {
             mergedStream <- (requests merge heartbeat).runForeach { m =>
               publisher(socket.outputStream)(m)
@@ -73,7 +84,7 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
           stream.via(ZPipeline.utf8Decode >>> ZPipeline.splitLines)
             .tap(m => loggerAdapter.debug("Received: " + m))
             .map(decode[ResponseMessage])
-            .mapZIO(e => ZIO.fromEither(e).mapError(_.getCause))
+            .mapZIO(e => ZIO.fromEither(e))
             .mapZIO {
 
               case msg@ConnectionMessage(id, connectionId) => for {
@@ -99,7 +110,8 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
                   _ <- loggerAdapter.trace(s"Status update: Connection is " + (if (connectionClosed) "closed" else "open"))
                 } yield msg
 
-              case msg => ZIO.succeed(msg)
+              case msg =>
+                ZIO.succeed(msg)
               //          case msg@MarketChangeMessage(id, ct, clk, heartbeatMs, pt, initialClk, mc, conflateMs, segmentType, status) => msg
               //          case msg@OrderChangeMessage(id, ct, clk, heartbeatMs, pt, oc, initialClk, conflateMs, segmentType, status) => msg
 

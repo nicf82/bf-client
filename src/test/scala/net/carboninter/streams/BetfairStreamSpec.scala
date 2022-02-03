@@ -43,12 +43,12 @@ object BetfairStreamSpec extends DefaultRunnableSpec:
 
     val program = for {
       streamService <- ZIO.service[BetfairStreamService]
-
+      counter <- Ref.make(0)
       fakeSocket <- buildFakeSocket
 
       _ <- fakeSocket.simulateSocketRcv(msgs("""{"op":"connection","connectionId":"connection-id"}"""))
 
-      (_, responseStream) <- streamService.stream(ZManaged.attempt(fakeSocket))
+      (_, responseStream) <- streamService.stream(ZManaged.attempt(fakeSocket), counter)
 
       queue <- ZQueue.unbounded[Take[Throwable, ResponseMessage]]
       fiber <- responseStream.runIntoQueue(queue).fork
