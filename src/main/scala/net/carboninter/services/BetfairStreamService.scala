@@ -20,7 +20,7 @@ import javax.net.ssl.{SSLSocket, SSLSocketFactory}
 
 trait BetfairStreamService:
   def managedSocket: TaskManaged[SocketDescriptor]
-  def stream(socketDescriptor: TaskManaged[SocketDescriptor]): UIO[(Queue[RequestMessage], ZStream[Clock & Random, Throwable, ResponseMessage])]
+  def stream(socketDescriptor: TaskManaged[SocketDescriptor]): UIO[(RequestMessage => UIO[Boolean], ZStream[Clock, Throwable, ResponseMessage])]
 
 object BetfairStreamService:
   val live: URLayer[AppConfigService & LoggerAdapter & BetfairIdentityService, BetfairStreamService] =
@@ -31,11 +31,11 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
   implicit val logger: Logger = LoggerFactory.getLogger(getClass)
   val sslSocketFactory = SSLSocketFactory.getDefault
 
-  def publisher(os: OutputStream)(message: RequestMessage): ZIO[Any, Throwable, Unit] = for {
+  def publisher(os: ZOutputStream)(message: RequestMessage): ZIO[Any, Throwable, Unit] = for {
     json  <- ZIO.succeed(message.asJson.noSpaces)
     _     <- loggerAdapter.debug("Publishing: " + json)
     bytes <- ZIO.succeed((json + "\r\n").getBytes)
-    _     <- ZIO.attemptBlocking(os.write(bytes))
+    _     <- os.write(Chunk.fromArray(bytes))
   } yield ()
 
 
@@ -53,7 +53,7 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
     ZManaged.acquireReleaseWith(acquire)(release)
   }
 
-  override def stream(socketDescriptor: TaskManaged[SocketDescriptor]): UIO[(Queue[RequestMessage], ZStream[Clock & Random, Throwable, ResponseMessage])] = {
+  override def stream(socketDescriptor: TaskManaged[SocketDescriptor]): UIO[(RequestMessage => UIO[Boolean], ZStream[Clock, Throwable, ResponseMessage])] = {
 
     for {
       publishQueue <- ZQueue.unbounded[RequestMessage]
@@ -68,7 +68,7 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
             mergedStream <- (requests merge heartbeat).runForeach { m =>
               publisher(socket.outputStream)(m)
             }.fork
-          } yield (counter, ZStream.fromInputStream(socket.inputStream))
+          } yield (counter, socket.inputStream)
         }.flatMap { case (counter, stream) =>
           stream.via(ZPipeline.utf8Decode >>> ZPipeline.splitLines)
             .tap(m => loggerAdapter.debug("Received: " + m))
@@ -105,6 +105,6 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
 
             }
         }
-      (publishQueue, responseStream)
+      (publishQueue.offer, responseStream)
     }
   }

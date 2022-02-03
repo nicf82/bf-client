@@ -15,7 +15,7 @@ import io.circe.generic.auto.*
 import scala.concurrent.Future
 
 trait BetfairIdentityService {
-  def getCredentials: Task[Credentials]
+  def getCredentials: RIO[Clock, Credentials]
 }
 
 object BetfairIdentityService {
@@ -26,18 +26,18 @@ object BetfairIdentityService {
       clock         <- ZIO.service[Clock]
       loggerAdapter <- ZIO.service[LoggerAdapter]
       configService <- ZIO.service[AppConfigService]
-    } yield LiveBetfairIdentityService(ref, clock, configService, loggerAdapter)
+    } yield LiveBetfairIdentityService(ref, configService, loggerAdapter)
   }
 
 }
 
-case class LiveBetfairIdentityService(ref: Ref.Synchronized[Credentials], clock: Clock, appConfigService: AppConfigService, loggerAdapter: LoggerAdapter) extends BetfairIdentityService {
+case class LiveBetfairIdentityService(ref: Ref.Synchronized[Credentials], appConfigService: AppConfigService, loggerAdapter: LoggerAdapter) extends BetfairIdentityService {
 
   implicit val _: Logger = LoggerFactory.getLogger(getClass)
   val backend: SttpBackend[Future, Any] = AsyncHttpClientFutureBackend()
 
-  override val getCredentials: Task[Credentials] = for {
-    now         <- clock.instant
+  override val getCredentials: RIO[Clock, Credentials] = for {
+    now         <- Clock.instant
     credentials <- ref.updateSomeAndGetZIO {
       case credentials if credentials.expires.isBefore(now) => fetchCredentials
     }
@@ -45,11 +45,11 @@ case class LiveBetfairIdentityService(ref: Ref.Synchronized[Credentials], clock:
 
   //TODO - implement keep alive within every 12 hours: https://docs.developer.betfair.com/pages/viewpage.action?pageId=3834909#Login&SessionManagement-KeepAlive
   
-  private val fetchCredentials: Task[Credentials] = for {
+  private val fetchCredentials: RIO[Clock, Credentials] = for {
     conf         <- appConfigService.getAppConfig.map(_.betfair)
     body         <- postRequest(conf.identityApi.uri, s"username=${conf.userName}&password=${conf.password}", conf.appKey)
     credentialsP <- ZIO.fromEither(parser.decode[Credentials.Payload](body)).mapError(new RuntimeException(_))
-    now          <- clock.instant
+    now          <- Clock.instant
     credentials   = Credentials(credentialsP, now.plusSeconds(300))
     _            <- loggerAdapter.debug(s"Fetched new credentials: token=${credentials.payload.token}, expires=${credentials.expires}")
   } yield credentials
