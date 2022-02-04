@@ -24,13 +24,14 @@ class FakeSocketDescriptor(socketInQueue: Queue[Byte], out: ByteArrayOutputStrea
   override def close: UIO[Unit] = ZIO.unit
 
   def simulateSocketRcv(a: Array[Byte]) = socketInQueue.offerAll(a)
-  def readSocketSent = out.toByteArray
+  def readSocketSent() = out.toByteArray
 
 object FakeSocketDescriptor:
   def buildFakeSocket = for {
     socketInQueue <- ZQueue.unbounded[Byte]
-    out = new ByteArrayOutputStream(4096)
-  } yield new FakeSocketDescriptor(socketInQueue, out)
+    out = new ByteArrayOutputStream(1024)
+    fss = new FakeSocketDescriptor(socketInQueue, out)
+  } yield (socketInQueue.offerAll, () => out.toByteArray, ZManaged.attempt(fss))
 
 
 object BetfairStreamSpec extends DefaultRunnableSpec:
@@ -44,23 +45,24 @@ object BetfairStreamSpec extends DefaultRunnableSpec:
     val program = for {
       streamService <- ZIO.service[BetfairStreamService]
       counter <- Ref.make(0)
-      fakeSocket <- buildFakeSocket
+      (simulateSocketRcv, readSocketSent, fakeSocket) <- buildFakeSocket
 
-      _ <- fakeSocket.simulateSocketRcv(msgs("""{"op":"connection","connectionId":"connection-id"}"""))
+      _ <- simulateSocketRcv(msgs("""{"op":"connection","connectionId":"connection-id"}"""))
 
-      (_, responseStream) <- streamService.stream(ZManaged.attempt(fakeSocket), counter)
+      (_, responseStream) <- streamService.stream(fakeSocket, counter)
 
       queue <- ZQueue.unbounded[Take[Throwable, ResponseMessage]]
       fiber <- responseStream.runIntoQueue(queue).fork
 
-      _ <- fakeSocket.simulateSocketRcv(msgs("""{"op":"status","id":0,"statusCode":"SUCCESS","connectionClosed":false,"connectionsAvailable":9}"""))
+      _ <- simulateSocketRcv(msgs("""{"op":"status","id":0,"statusCode":"SUCCESS","connectionClosed":false,"connectionsAvailable":9}"""))
 
       responses <- queue.take.flatMap(_.done)
+      _ <- ZIO.sleep(1.seconds) //This is to give time for the fake socket's out stream to register the change - try making it a ZStream[String] so we can take?
       _ <- fiber.interrupt
-
+      str = readSocketSent().map(_.toChar).mkString
     } yield {
       assert(responses(0))(Assertion.equalTo( ConnectionMessage(None,Some("connection-id")) )) &&
-      assertTrue(fakeSocket.readSocketSent == msgs("""{"id":0,"session":"cred-token","appKey":"irEfG0vsZZ64hbvt","op":"authentication"}""")) &&
+      assertTrue(str == msgs("""{"id":0,"session":"cred-token","appKey":"anyAppKey","op":"authentication"}""").map(_.toChar).mkString) &&
       assert(responses(1))(Assertion.equalTo( StatusMessage(Some(0),Some(9),None,None,None,Some(false),Some(Success)) ))
     }
 
