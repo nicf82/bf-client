@@ -6,11 +6,15 @@ import net.carboninter.logging.LoggerAdapter
 import zio.stream.*
 import zio.*
 import cats.syntax.show.*
+
 import java.util.concurrent.TimeUnit
 import org.slf4j.{Logger, LoggerFactory}
 import swagger.definitions.AllRequestTypesExample.OpTypes.members.MarketSubscription
 import swagger.definitions.*
 import swagger.definitions.StatusMessage.StatusCode.*
+import swagger.definitions.MarketChangeMessage.Ct.*
+import scala.{Console => C}
+import java.time.Instant
 
 object Runner extends ZIOAppDefault {
 
@@ -30,6 +34,15 @@ object Runner extends ZIOAppDefault {
           id <- counter.getAndUpdate(_ + 1)
           config <- appConfigService.getAppConfig
         } yield (msg, Some(buildSubscription(id, config.betfair.heartbeatRemote)))
+
+      case msg@MarketChangeMessage(id, Some(Heartbeat), clk, heartbeatMs, pt, initialClk, mc, conflateMs, segmentType, status) =>
+        print(".")
+        ZIO.succeed( (msg, None) )
+
+      case msg@MarketChangeMessage(id, ct, clk, heartbeatMs, pt, initialClk, mc, conflateMs, segmentType, status) =>
+        outputMarketInfo(msg)
+        ZIO.succeed( (msg, None) )
+
       case msg =>
         ZIO.succeed( (msg, None) )
     }.tap {
@@ -41,11 +54,31 @@ object Runner extends ZIOAppDefault {
 
   } yield ()
 
+  def cout(ansi: String*)(s: String) = println(ansi.mkString + s + C.RESET)
+
+  def outputMarketInfo(mcm: MarketChangeMessage) = {
+    cout(C.BOLD, C.BLUE)(s"\npt: ${Instant.ofEpochMilli(mcm.pt.get)}, ct: ${mcm.ct}")
+    cout(C.BOLD, C.BLUE)("======================================")
+
+    for(mc <- mcm.mc.getOrElse(Nil)) {
+      cout(C.BOLD, C.GREEN)(s"${mc.id.get} ${mc.marketDefinition.get.venue.get} ${mc.marketDefinition.get.marketTime.get} ${mc.marketDefinition.get.bettingType.get} ${mc.marketDefinition.get.marketType.get}")
+      cout(C.BOLD, C.GREEN)("--------------------------------------")
+      for((rc, i) <- mc.rc.getOrElse(Nil).zipWithIndex) {
+        cout(C.BOLD, C.YELLOW)(s"\n$i, ${rc.id}")
+        for(atb <- rc.atb.getOrElse(Nil).sortBy(_(0))) {
+          print(" " + atb(0) + "@" + atb(1))
+        }
+        println()
+      }
+    }
+  }
+
   def buildSubscription(id: Int, hb: Int) = {
     val marketFilter = MarketFilter(
       countryCodes = Some(Vector("GB")),
-      eventTypeIds = Some(Vector("7")), //Horseys
-      eventIds = Some(Vector("31214001")), //Horseys
+      eventTypeIds = Some(Vector("7")),        //Horseys
+      eventIds = Some(Vector("31212112")),     //Chepstow, Feb 4th
+      marketIds = Some(Vector("1.194193563")),// "1.194193568")), //16:00, 16:35
       bspMarket = Some(true)
     )
     MarketSubscriptionMessage(

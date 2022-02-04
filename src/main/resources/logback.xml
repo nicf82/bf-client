@@ -16,7 +16,7 @@
     </encoder>
   </appender>
 
-  <logger name="net.carboninter" level="DEBUG" />
+  <logger name="net.carboninter" level="INFO" />
 
   <root level="INFO">
     <appender-ref ref="STDOUT" />
