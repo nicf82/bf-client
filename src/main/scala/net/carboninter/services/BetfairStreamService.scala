@@ -3,7 +3,7 @@ package net.carboninter.services
 import io.circe.*
 import io.circe.parser.*
 import io.circe.syntax.*
-import net.carboninter.Runner.buildSubscription
+import net.carboninter.Main.buildSubscription
 import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter
 import net.carboninter.models.*
@@ -103,6 +103,11 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
               case msg@StatusMessage(id, connectionsAvailable, errorMessage, errorCode, connectionId, Some(true), Some(StatusCode.Failure)) =>
                 for {
                   _ <- loggerAdapter.error(s"$errorCode: $errorMessage - (terminating the connection): ")
+                } yield msg
+
+              case msg@StatusMessage(id, Some(connectionsAvailable), errorMessage, errorCode, connectionId, Some(connectionClosed), Some(StatusCode.Success)) =>
+                for {
+                  _ <- loggerAdapter.info(s"Connected to stream api successfully, ${connectionsAvailable} connections available")
                 } yield msg
 
               case msg@StatusMessage(id, connectionsAvailable, errorMessage, errorCode, connectionId, Some(connectionClosed), Some(StatusCode.Success)) =>

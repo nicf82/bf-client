@@ -1,4 +1,4 @@
-package net.carboninter.streams
+package net.carboninter.services
 
 import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter

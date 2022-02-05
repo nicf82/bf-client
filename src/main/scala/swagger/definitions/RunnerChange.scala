@@ -12,36 +12,46 @@ import _root_.swagger.Implicits.*
 import io.circe.Decoder.Result
 import io.circe.Json.*
 
-import scala.util.Try
-case class RunnerChange(tv: Option[Double] = None, batb: Option[Vector[Vector[Double]]] = None, spb: Option[Vector[Vector[Double]]] = None, bdatl: Option[Vector[Vector[Double]]] = None, trd: Option[Vector[Vector[Double]]] = None, spf: Option[String] = None, ltp: Option[Double] = None, atb: Option[Vector[Vector[Double]]] = None, spl: Option[Vector[Vector[Double]]] = None, spn: Option[Double] = None, atl: Option[Vector[Vector[Double]]] = None, batl: Option[Vector[Vector[Double]]] = None, id: Option[Long] = None, hc: Option[Double] = None, bdatb: Option[Vector[Vector[Double]]] = None)
+case class RunnerChange(
+  tv: Option[Double] = None,                    //Traded Volume
+  batb: Option[Vector[LevelPriceSize]] = None,  //Best Available To Back (non-virtual)
+  spb: Option[Vector[PriceSize]] = None,        //Starting Price (Available To) Back (please be aware that these values are aligned with atb / atl)
+  bdatl: Option[Vector[LevelPriceSize]] = None, //Best Display Available To Lay (virtual)
+  trd: Option[Vector[PriceSize]] = None,        //Traded
+  spf: Option[TolerantString] = None,           //Starting Price Far
+  ltp: Option[Double] = None,                   //Last Traded Price
+  atb: Option[Vector[PriceSize]] = None,        //Available To Back (these are the raw / full depth non-virtual prices)
+  spl: Option[Vector[PriceSize]] = None,        //Starting Price (Available To) Lay (please be aware that these values are aligned with atb / atl)
+  spn: Option[TolerantString] = None,           //Starting Price Near
+  atl: Option[Vector[PriceSize]] = None,        //Available To Lay (these are the raw / full depth non-virtual prices)
+  batl: Option[Vector[LevelPriceSize]] = None,  //Best Available To Lay (non-virtual)
+  id: Long,
+  hc: Option[Double] = None,                    //Handicap?
+  bdatb: Option[Vector[LevelPriceSize]] = None  //Best Display Available To Back (virtual)
+)
+
 object RunnerChange {
   implicit val encodeRunnerChange: _root_.io.circe.Encoder.AsObject[RunnerChange] = {
     val readOnlyKeys = _root_.scala.Predef.Set[_root_.scala.Predef.String]()
     _root_.io.circe.Encoder.AsObject.instance[RunnerChange](a => _root_.io.circe.JsonObject.fromIterable(_root_.scala.Vector(("tv", a.tv.asJson), ("batb", a.batb.asJson), ("spb", a.spb.asJson), ("bdatl", a.bdatl.asJson), ("trd", a.trd.asJson), ("spf", a.spf.asJson), ("ltp", a.ltp.asJson), ("atb", a.atb.asJson), ("spl", a.spl.asJson), ("spn", a.spn.asJson), ("atl", a.atl.asJson), ("batl", a.batl.asJson), ("id", a.id.asJson), ("hc", a.hc.asJson), ("bdatb", a.bdatb.asJson)))).mapJsonObject(_.filterKeys(key => !(readOnlyKeys contains key)))
   }
 
-  val decodeNumAsStr: Decoder[String] = Decoder.decodeString.or(
-    Decoder.decodeDouble.emap {
-      case d => Right(d.toString)
-    }
-  )
-
   implicit val decodeRunnerChange: _root_.io.circe.Decoder[RunnerChange] = new _root_.io.circe.Decoder[RunnerChange] {
     final def apply(c: _root_.io.circe.HCursor): _root_.io.circe.Decoder.Result[RunnerChange] = for {
       v0 <- c.downField("tv").as[Option[Double]]
-      v1 <- c.downField("batb").as[Option[Vector[Vector[Double]]]]
-      v2 <- c.downField("spb").as[Option[Vector[Vector[Double]]]]
-      v3 <- c.downField("bdatl").as[Option[Vector[Vector[Double]]]]
-      v4 <- c.downField("trd").as[Option[Vector[Vector[Double]]]]
-      v5 <- c.getOrElse("spf")(None)(decodeNumAsStr.map(Some(_)))
+      v1 <- c.downField("batb").as[Option[Vector[LevelPriceSize]]]
+      v2 <- c.downField("spb").as[Option[Vector[PriceSize]]]
+      v3 <- c.downField("bdatl").as[Option[Vector[LevelPriceSize]]]
+      v4 <- c.downField("trd").as[Option[Vector[PriceSize]]]
+      v5 <- c.downField("spf").as[Option[TolerantString]]
       v6 <- c.downField("ltp").as[Option[Double]]
-      v7 <- c.downField("atb").as[Option[Vector[Vector[Double]]]]
-      v8 <- c.downField("spl").as[Option[Vector[Vector[Double]]]]
-      v9 <- c.downField("spn").as[Option[Double]]
-      v10 <- c.downField("atl").as[Option[Vector[Vector[Double]]]]
-      v11 <- c.downField("batl").as[Option[Vector[Vector[Double]]]]
-      v12 <- c.downField("id").as[Option[Long]]
+      v7 <- c.downField("atb").as[Option[Vector[PriceSize]]]
+      v8 <- c.downField("spl").as[Option[Vector[PriceSize]]]
+      v9 <- c.downField("spn").as[Option[TolerantString]]
+      v10 <- c.downField("atl").as[Option[Vector[PriceSize]]]
+      v11 <- c.downField("batl").as[Option[Vector[LevelPriceSize]]]
+      v12 <- c.downField("id").as[Long]
       v13 <- c.downField("hc").as[Option[Double]]
-      v14 <- c.downField("bdatb").as[Option[Vector[Vector[Double]]]]
+      v14 <- c.downField("bdatb").as[Option[Vector[LevelPriceSize]]]
     } yield RunnerChange(v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14) }
 }

@@ -1,3 +1,6 @@
+resolvers += Resolver.mavenLocal
+//resolvers += DefaultMavenRepository
+
 name := "bf-client"
 
 version := "0.1"
@@ -11,6 +14,8 @@ val logbackEncoderVersion  = "6.6"
 val asyncHttpClientVersion = "3.3.18"
 val zioJsonVersion         = "0.3.0-RC2"
 val circeVersion           = "0.14.1"
+
+libraryDependencies += "com.github.cmincu" % "jbetfairng"  % "1.1.0-SNAPSHOT" exclude("org.jetbrains", "annotations")
 
 libraryDependencies += "dev.zio" %% "zio"                  % zioVersion
 libraryDependencies += "dev.zio" %% "zio-streams"          % zioVersion

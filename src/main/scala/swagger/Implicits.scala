@@ -11,6 +11,15 @@ import cats.implicits._
 import cats.implicits._
 import cats.data.EitherT
 object Implicits {
+
+  type TolerantString = String
+
+  implicit val decodeNumAsStr: Decoder[TolerantString] = Decoder.decodeString.or(
+    Decoder.decodeDouble.emap {
+      case d => Right(d.toString)
+    }
+  )
+  
   abstract class AddArg[T] { def addArg(key: String, v: T): String }
   object AddArg {
     def build[T](f: String => T => String): AddArg[T] = new AddArg[T] { def addArg(key: String, v: T): String = f(key)(v) }

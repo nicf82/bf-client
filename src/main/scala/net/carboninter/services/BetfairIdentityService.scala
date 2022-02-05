@@ -50,7 +50,7 @@ case class LiveBetfairIdentityService(ref: Ref.Synchronized[Credentials], appCon
     body         <- postRequest(conf.identityApi.uri, s"username=${conf.userName}&password=${conf.password}", conf.appKey)
     credentialsP <- ZIO.fromEither(parser.decode[Credentials.Payload](body)).mapError(new RuntimeException(_))
     now          <- Clock.instant
-    credentials   = Credentials(credentialsP, now.plusSeconds(300))
+    credentials   = Credentials(credentialsP, now.plusSeconds(900))
     _            <- loggerAdapter.debug(s"Fetched new credentials: token=${credentials.payload.token}, expires=${credentials.expires}")
   } yield credentials
 

@@ -21,6 +21,8 @@ import io.circe.syntax.*
 import java.io.File
 import java.net.URL
 import scala.io.Source
+import cats.*
+import cats.implicits.*
 
 object ModelSpec  extends DefaultRunnableSpec:
 
@@ -31,7 +33,7 @@ object ModelSpec  extends DefaultRunnableSpec:
     val raw = Source.fromFile(file).mkString
     val result = decode[ResponseMessage](raw)
 
-    assert(result)(Assertion.isRight)
+    assert(result.swap.map(_.show).swap)(Assertion.isRight)
   }
 
   lazy val dir = new File(getClass.getResource(s"/testResponses").getFile)
