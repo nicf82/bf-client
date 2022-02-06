@@ -1,7 +1,5 @@
 package net.carboninter.services
 
-import org.apache.kafka.clients.producer.*
-import org.apache.kafka.common.serialization.StringSerializer
 import swagger.definitions.*
 
 import java.util.Properties
@@ -13,45 +11,24 @@ import net.carboninter.syntax.*
 import org.slf4j.{Logger, LoggerFactory}
 import scala.{Console => C}
 
-trait MarketChangePublisher:
-  def handleMarketChangeMessage(mcm: MarketChangeMessage): RIO[Clock & BetfairService, Unit]
-  def publish(marketChange: MarketChange): IO[Throwable, RecordMetadata]
+trait MarketChangeRenderer:
+  def renderMarketChangeMessage(mcm: MarketChangeMessage): RIO[Clock & BetfairService, Unit]
 
 
-object MarketChangePublisher:
-  def live: ZLayer[KafkaProducer[String, String] & AppConfigService & LoggerAdapter, Throwable, MarketChangePublisher] = ZLayer.fromZIO {
+object MarketChangeRenderer:
+  def live: ZLayer[AppConfigService & LoggerAdapter, Throwable, MarketChangeRenderer] = ZLayer.fromZIO {
     for {
       loggerAdapter <- ZIO.service[LoggerAdapter]
       configService <- ZIO.service[AppConfigService]
-      producer      <- ZIO.service[KafkaProducer[String, String]]
-    } yield LiveMarketChangePublisher(configService, loggerAdapter, producer)
+    } yield LiveMarketChangeRenderer(configService, loggerAdapter)
   }
 
-class LiveMarketChangePublisher(appConfigService: AppConfigService, loggerAdapter: LoggerAdapter, producer: KafkaProducer[String, String]) extends MarketChangePublisher:
+
+class LiveMarketChangeRenderer(appConfigService: AppConfigService, loggerAdapter: LoggerAdapter) extends MarketChangeRenderer:
 
   implicit val _: Logger = LoggerFactory.getLogger(getClass)
 
-  //TODO - 1st draft. Dont publish the raw message like this - it needs to embelish whats in the cache to get the full picture
-  override def publish(marketChange: MarketChange) = IO.asyncZIO[Throwable, RecordMetadata] { cb =>
-    //TODO - this will not be sent as a string! Avro?
-    for {
-      _ <- ZIO.attempt {
-        val payload = marketChange.asJson.noSpaces
-        producer.send(new ProducerRecord[String, String]("market_changes_raw", marketChange.id, payload), new Callback() {
-          override def onCompletion(recordMetadata: RecordMetadata, e: Exception): Unit = {
-            if (e == null) {
-              cb(IO.succeed(recordMetadata))
-            } else {
-              loggerAdapter.warn("Kafka send failed", e)
-              cb(IO.fail(e))
-            }
-          }
-        })
-      }
-    } yield ()
-  }
-
-  def handleMarketChangeMessage(mcm: MarketChangeMessage): RIO[Clock & BetfairService, Unit] = for {
+  def renderMarketChangeMessage(mcm: MarketChangeMessage): RIO[Clock & BetfairService, Unit] = for {
     publishTime    <- ZIO.fromOption(mcm.pt).mapError(rte("No publishTime"))
     changeType     =  mcm.ct
     _              =  coutl(C.BOLD, C.MAGENTA)(s"\npt: ${publishTime.toOffsetDateTime}, ct: $changeType")
@@ -60,8 +37,7 @@ class LiveMarketChangePublisher(appConfigService: AppConfigService, loggerAdapte
   } yield ()
 
   def handleMarketChange(mc: MarketChange): RIO[Clock & BetfairService, Unit] = for {
-    _              <- publish(mc)
-    marketId       =  mc.id
+    marketId       <- ZIO.succeed(mc.id)
     marketDef      =  mc.marketDefinition
     venue          =  marketDef.flatMap(_.venue)
     marketTime     =  marketDef.flatMap(_.marketTime)

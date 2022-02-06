@@ -18,14 +18,19 @@ import io.circe.syntax.*
 import io.circe.parser.*
 
 trait ManagedKafkaService:
-  def publishMarketChange(marketChange: MarketChange): ZIO[KafkaProducer[String, String], Throwable, Unit]
+  def publishMarketChange(marketChange: MarketChange): Task[Unit]
+
 
 object ManagedKafkaService:
 
-  val producer: TaskLayer[KafkaProducer[String, String]] = ZManaged.acquireReleaseAttemptWith(createKafkaProducer)(p => p.close()).toLayer
-
-  val live: URLayer[AppConfigService & LoggerAdapter, ManagedKafkaService] =
-    (LiveManagedKafkaService(_, _)).toLayer[ManagedKafkaService]
+  val live: ZLayer[AppConfigService & LoggerAdapter, Throwable, ManagedKafkaService] =
+    ZManaged.acquireReleaseAttemptWith(createKafkaProducer)(p => p.close()).toLayer >>> ZLayer.fromZIO {
+      for {
+        appConfigService <- ZIO.service[AppConfigService]
+        loggerAdapter <- ZIO.service[LoggerAdapter]
+        producer <- ZIO.service[KafkaProducer[String, String]]
+      } yield LiveManagedKafkaService(appConfigService, loggerAdapter, producer)
+    }
 
   private def createKafkaProducer: KafkaProducer[String, String] = {
     val bootstrapServers = "127.0.0.1:9092"
@@ -50,14 +55,14 @@ object ManagedKafkaService:
 
   }
 
-case class LiveManagedKafkaService(appConfigService: AppConfigService, loggerAdapter: LoggerAdapter) extends ManagedKafkaService:
+
+case class LiveManagedKafkaService(appConfigService: AppConfigService, loggerAdapter: LoggerAdapter, producer: KafkaProducer[String, String]) extends ManagedKafkaService:
 
   implicit val _: Logger = LoggerFactory.getLogger(getClass)
 
-  override def publishMarketChange(marketChange: MarketChange): ZIO[KafkaProducer[String, String], Throwable, Unit] = ZIO.asyncZIO[KafkaProducer[String, String], Throwable, Unit] { cb =>
+  override def publishMarketChange(marketChange: MarketChange): Task[Unit] = Task.asyncZIO[Unit] { cb =>
 
     for {
-      producer <- ZIO.service[KafkaProducer[String, String]]
       _ <- ZIO.attempt {
         producer.send(new ProducerRecord[String, String]("market_changes_raw", marketChange.id, marketChange.asJson.noSpaces), new Callback() {
           override def onCompletion(recordMetadata: RecordMetadata, e: Exception): Unit = {

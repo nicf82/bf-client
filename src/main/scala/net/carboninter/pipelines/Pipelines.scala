@@ -2,15 +2,13 @@ package net.carboninter.pipelines
 
 import net.carboninter.kafka.ManagedKafkaService
 import net.carboninter.services.*
-import org.apache.kafka.clients.producer.KafkaProducer
 import swagger.definitions.MarketChangeMessage.Ct.Heartbeat
 import swagger.definitions.{MarketChange, MarketChangeMessage, ResponseMessage}
 import zio.*
 import zio.stream.*
 
 object Pipelines:
-
-
+  
   val flatMapMarketChangesPipeline: ZPipeline[Any, Nothing, ResponseMessage, MarketChange] =
     ZPipeline.collect {
       case message: MarketChangeMessage if message.ct != Some(Heartbeat) => message
@@ -21,7 +19,7 @@ object Pipelines:
       } yield marketChange
     }
 
-  val kafkaPublishMarketChanges: ZPipeline[KafkaProducer[String, String] & ManagedKafkaService, Throwable, ResponseMessage, MarketChange] =
+  val kafkaPublishMarketChanges: ZPipeline[ManagedKafkaService, Throwable, ResponseMessage, MarketChange] =
     flatMapMarketChangesPipeline >>> ZPipeline.mapZIO { marketChange =>
       for {
         managedKafkaService <- ZIO.service[ManagedKafkaService]
@@ -29,13 +27,13 @@ object Pipelines:
       } yield marketChange
     }
 
-  val displayMarketChangeMessagePipeline: ZPipeline[Clock & BetfairService & MarketChangePublisher, Throwable, ResponseMessage, Unit] =
+  val displayMarketChangeMessagePipeline: ZPipeline[Clock & BetfairService & MarketChangeRenderer, Throwable, ResponseMessage, Unit] =
     ZPipeline.collect {
       case message: MarketChangeMessage if message.ct != Some(Heartbeat) => message
     } >>> ZPipeline.mapZIO { message =>
       for {
-        marketChangePublisher <- ZIO.service[MarketChangePublisher]
-        _ <- marketChangePublisher.handleMarketChangeMessage(message)
+        marketChangePublisher <- ZIO.service[MarketChangeRenderer]
+        _ <- marketChangePublisher.renderMarketChangeMessage(message)
       } yield ()
     }
 

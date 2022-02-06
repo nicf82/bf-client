@@ -17,32 +17,6 @@ import zio.Duration.*
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, IOException, InputStream, OutputStream, PipedInputStream, PipedOutputStream}
 
-class FakeSocketDescriptor(socketInQueue: Queue[Byte], out: ByteArrayOutputStream) extends SocketDescriptor:
-
-  override def responseStream: ZStream[Any, IOException, Byte] = ZStream.fromQueue(socketInQueue)
-
-  override def requestSink: Sink[Throwable, String, Nothing, Unit] =
-    ZSink.fromOutputStream(out).dropLeftover.contramapChunks[String] { stringChunks =>
-        for {
-          string <- stringChunks
-          bytes <- (string+"\r\n").getBytes
-        } yield bytes
-      }.map(_ => ())
-
-  override def close: UIO[Unit] = ZIO.unit
-
-  def simulateSocketRcv(a: Array[Byte]) = socketInQueue.offerAll(a)
-  def readSocketSent() = out.toByteArray
-
-
-object FakeSocketDescriptor:
-  def buildFakeSocket = for {
-    socketInQueue <- ZQueue.unbounded[Byte]
-    out = new ByteArrayOutputStream(1024)
-    fss = new FakeSocketDescriptor(socketInQueue, out)
-  } yield (socketInQueue.offerAll, () => out.toByteArray, fss)
-
-
 object BetfairStreamSpec extends DefaultRunnableSpec:
 
   import FakeSocketDescriptor._
@@ -89,3 +63,27 @@ object BetfairStreamSpec extends DefaultRunnableSpec:
     liveEnvironment, LoggerAdapter.live, AppConfigService.live, mockBetfairIdentityService
   )
 
+class FakeSocketDescriptor(socketInQueue: Queue[Byte], out: ByteArrayOutputStream) extends SocketDescriptor:
+
+  override def responseStream: ZStream[Any, IOException, Byte] = ZStream.fromQueue(socketInQueue)
+
+  override def requestSink: Sink[Throwable, String, Nothing, Unit] =
+    ZSink.fromOutputStream(out).dropLeftover.contramapChunks[String] { stringChunks =>
+      for {
+        string <- stringChunks
+        bytes <- (string+"\r\n").getBytes
+      } yield bytes
+    }.map(_ => ())
+
+  override def close: UIO[Unit] = ZIO.unit
+
+  def simulateSocketRcv(a: Array[Byte]) = socketInQueue.offerAll(a)
+  def readSocketSent() = out.toByteArray
+
+
+object FakeSocketDescriptor:
+  def buildFakeSocket = for {
+    socketInQueue <- ZQueue.unbounded[Byte]
+    out = new ByteArrayOutputStream(1024)
+    fss = new FakeSocketDescriptor(socketInQueue, out)
+  } yield (socketInQueue.offerAll, () => out.toByteArray, fss)

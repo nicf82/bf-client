@@ -102,8 +102,7 @@ object Main extends ZIOAppDefault {
       BetfairStreamService.live,
       LoggerAdapter.live,
       AppConfigService.live,
-      ManagedKafkaService.producer,  //TODO - should not need 2 from ManagedKafkaService
       ManagedKafkaService.live,
-      MarketChangePublisher.live
+      MarketChangeRenderer.live
     )
 }
