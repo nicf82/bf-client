@@ -1,6 +1,6 @@
 package net.carboninter
 
-import net.carboninter.services.{BetfairStreamService, *}
+import net.carboninter.betfair.*
 import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter
 import zio.stream.*
@@ -10,6 +10,7 @@ import net.carboninter.kafka.ManagedKafkaService
 import net.carboninter.syntax.*
 import net.carboninter.models.*
 import net.carboninter.pipelines.Pipelines.*
+import net.carboninter.rendering.MarketChangeRenderer
 
 import java.util.concurrent.TimeUnit
 import org.slf4j.{Logger, LoggerFactory}
@@ -28,10 +29,10 @@ object Main extends ZIOAppDefault {
 
   val tmpSubscribeMessagesStream =  ZStream.tick(5.seconds).drop(1) <&> ZStream(Vector("1.193792920"), Vector("1.193792920", "1.193791701"))
 
-  val requestSinkAndResponseStream: ZIO[ZEnv & AppConfigService & SocketDescriptor & BetfairStreamService, Throwable, (Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock & BetfairService, Throwable, ResponseMessage])] = for {
+  val requestSinkAndResponseStream: ZIO[ZEnv & AppConfigService & BetfairConnection & BetfairStreamService, Throwable, (Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock & BetfairService, Throwable, ResponseMessage])] = for {
     streamService <- ZIO.service[BetfairStreamService]
     appConfigService <- ZIO.service[AppConfigService]
-    socketDescriptor <- ZIO.service[SocketDescriptor]
+    socketDescriptor <- ZIO.service[BetfairConnection]
     counter <- Ref.make(0)
     (requestSink, responseStream) <- streamService.stream(socketDescriptor, counter)
 
@@ -98,7 +99,7 @@ object Main extends ZIOAppDefault {
   def run: ZIO[Environment, Any, Any] = program.flatMapError(errorHandler)
     .provideSome[Environment](BetfairIdentityService.live,
       BetfairService.live,
-      ManagedSocket.socket,
+      BetfairConnection.live,
       BetfairStreamService.live,
       LoggerAdapter.live,
       AppConfigService.live,

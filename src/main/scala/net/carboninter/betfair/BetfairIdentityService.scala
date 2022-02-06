@@ -1,4 +1,4 @@
-package net.carboninter.services
+package net.carboninter.betfair
 
 import net.carboninter.appconf.{AppConfigService, Betfair}
 import net.carboninter.logging.LoggerAdapter

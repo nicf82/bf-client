@@ -1,15 +1,16 @@
-package net.carboninter.services
+package net.carboninter.rendering
 
-import swagger.definitions.*
-
-import java.util.Properties
-import zio.*
 import io.circe.syntax.*
 import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter
+import net.carboninter.betfair.*
 import net.carboninter.syntax.*
 import org.slf4j.{Logger, LoggerFactory}
-import scala.{Console => C}
+import swagger.definitions.*
+import zio.*
+
+import java.util.Properties
+import scala.Console as C
 
 trait MarketChangeRenderer:
   def renderMarketChangeMessage(mcm: MarketChangeMessage): RIO[Clock & BetfairService, Unit]

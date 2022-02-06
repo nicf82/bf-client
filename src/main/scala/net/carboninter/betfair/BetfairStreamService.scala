@@ -1,4 +1,4 @@
-package net.carboninter.services
+package net.carboninter.betfair
 
 import io.circe.*
 import io.circe.parser.*
@@ -21,7 +21,7 @@ import javax.net.SocketFactory
 import javax.net.ssl.{SSLParameters, SSLSocket, SSLSocketFactory}
 
 trait BetfairStreamService:
-  def stream(socketDescriptor: SocketDescriptor, counter: Ref[Int]): UIO[(Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])]
+  def stream(socketDescriptor: BetfairConnection, counter: Ref[Int]): UIO[(Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])]
 
 
 object BetfairStreamService:
@@ -33,7 +33,7 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
 
   implicit val logger: Logger = LoggerFactory.getLogger(getClass)
 
-  override def stream(socketDescriptor: SocketDescriptor, counter: Ref[Int]): UIO[(Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])] = {
+  override def stream(socketDescriptor: BetfairConnection, counter: Ref[Int]): UIO[(Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])] = {
 
     val requestSink: Sink[Throwable, RequestMessage, Nothing, Unit] = {
       socketDescriptor.requestSink.contramap(request => request.asJson.noSpaces)
@@ -92,27 +92,3 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
     }
   }
 
-object ManagedSocket:
-
-  private val sslSocketFactory = SSLSocketFactory.getDefault
-  implicit val _: Logger = LoggerFactory.getLogger(getClass)
-
-  val socket: RLayer[AppConfigService & LoggerAdapter, SocketDescriptor] = {
-    def acquire: ZIO[AppConfigService & LoggerAdapter, Throwable, SocketDescriptor] = for {
-      config <- ZIO.serviceWithZIO[AppConfigService](_.getAppConfig.map(_.betfair))
-      socket <- ZIO.attempt {
-        val socket = sslSocketFactory.createSocket(config.streamApi.host, config.streamApi.port).asInstanceOf[SSLSocket]
-        socket.startHandshake()
-        socket.setReceiveBufferSize(1024 * 1000 * 2) //shaves about 20s off firehose image.
-        socket.setSoTimeout(30*1000);
-        socket
-      }
-    } yield SSLSocketDescriptor(socket)
-
-    def release(s: SocketDescriptor): ZIO[AppConfigService & LoggerAdapter, Nothing, Unit] = for {
-      _ <- ZIO.serviceWithZIO[LoggerAdapter](_.info("Closing betfair stream socket"))
-      _ <- s.close
-    } yield ()
-
-    ZManaged.acquireReleaseWith(acquire)(release)
-  }.toLayer

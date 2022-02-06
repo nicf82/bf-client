@@ -2,7 +2,7 @@ package net.carboninter.kafka
 
 import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter
-import net.carboninter.services.BetfairIdentityService
+import net.carboninter.betfair.BetfairIdentityService
 import org.apache.kafka.clients.producer
 import org.apache.kafka.clients.producer.{Callback, KafkaProducer, ProducerConfig, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.StringSerializer

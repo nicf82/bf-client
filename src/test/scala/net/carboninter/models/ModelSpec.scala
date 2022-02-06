@@ -3,8 +3,8 @@ package net.carboninter.models
 import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter
 import net.carboninter.models.Credentials.Payload
-import net.carboninter.models.{Credentials, SocketDescriptor}
-import net.carboninter.services.{BetfairIdentityService, BetfairStreamService}
+import net.carboninter.models.Credentials
+import net.carboninter.betfair.{BetfairIdentityService, BetfairStreamService}
 import swagger.definitions.*
 import swagger.definitions.StatusMessage.StatusCode.*
 import zio.test.{TestEnvironment, *}

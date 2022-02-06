@@ -1,4 +1,4 @@
-package net.carboninter.services
+package net.carboninter.betfair
 
 import com.jbetfairng.*
 import com.jbetfairng.entities.*

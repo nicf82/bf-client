@@ -1,10 +1,10 @@
-package net.carboninter.services
+package net.carboninter.betfair
 
 import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter
 import net.carboninter.models.Credentials.Payload
-import net.carboninter.models.{Credentials, SocketDescriptor}
-import net.carboninter.services.{BetfairIdentityService, BetfairStreamService}
+import net.carboninter.models.Credentials
+import net.carboninter.betfair.{BetfairIdentityService, BetfairStreamService}
 import swagger.definitions.*
 import swagger.definitions.StatusMessage.StatusCode.*
 import zio.test.{TestEnvironment, *}
@@ -19,7 +19,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, IOException, InputS
 
 object BetfairStreamSpec extends DefaultRunnableSpec:
 
-  import FakeSocketDescriptor._
+  import FakeBetfairConnection._
 
   def msgs(s: String*) = s.mkString("", "\r\n", "\r\n").getBytes("UTF-8")
 
@@ -63,7 +63,7 @@ object BetfairStreamSpec extends DefaultRunnableSpec:
     liveEnvironment, LoggerAdapter.live, AppConfigService.live, mockBetfairIdentityService
   )
 
-class FakeSocketDescriptor(socketInQueue: Queue[Byte], out: ByteArrayOutputStream) extends SocketDescriptor:
+class FakeBetfairConnection(socketInQueue: Queue[Byte], out: ByteArrayOutputStream) extends BetfairConnection:
 
   override def responseStream: ZStream[Any, IOException, Byte] = ZStream.fromQueue(socketInQueue)
 
@@ -81,9 +81,9 @@ class FakeSocketDescriptor(socketInQueue: Queue[Byte], out: ByteArrayOutputStrea
   def readSocketSent() = out.toByteArray
 
 
-object FakeSocketDescriptor:
+object FakeBetfairConnection:
   def buildFakeSocket = for {
     socketInQueue <- ZQueue.unbounded[Byte]
     out = new ByteArrayOutputStream(1024)
-    fss = new FakeSocketDescriptor(socketInQueue, out)
+    fss = new FakeBetfairConnection(socketInQueue, out)
   } yield (socketInQueue.offerAll, () => out.toByteArray, fss)

@@ -1,8 +1,8 @@
-package net.carboninter.services
+package net.carboninter.betfair
 
 import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter
-import net.carboninter.services.BetfairStreamSpec.{getClass, mockBetfairIdentityService, suite, test1}
+import net.carboninter.betfair.BetfairStreamSpec.{getClass, mockBetfairIdentityService, suite, test1}
 import zio.*
 import zio.test.*
 
