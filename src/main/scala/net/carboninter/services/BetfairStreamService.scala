@@ -23,9 +23,11 @@ import javax.net.ssl.{SSLParameters, SSLSocket, SSLSocketFactory}
 trait BetfairStreamService:
   def stream(socketDescriptor: SocketDescriptor, counter: Ref[Int]): UIO[(Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])]
 
+
 object BetfairStreamService:
   val live: URLayer[AppConfigService & LoggerAdapter & BetfairIdentityService, BetfairStreamService] =
     (LiveBetfairStreamService(_, _, _)).toLayer[BetfairStreamService]
+
 
 case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAdapter: LoggerAdapter, betfairIdentityService: BetfairIdentityService) extends BetfairStreamService:
 

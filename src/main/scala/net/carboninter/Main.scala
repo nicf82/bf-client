@@ -6,8 +6,10 @@ import net.carboninter.logging.LoggerAdapter
 import zio.stream.*
 import zio.*
 import cats.syntax.show.*
+import net.carboninter.kafka.ManagedKafkaService
 import net.carboninter.syntax.*
 import net.carboninter.models.*
+import net.carboninter.pipelines.Pipelines.*
 
 import java.util.concurrent.TimeUnit
 import org.slf4j.{Logger, LoggerFactory}
@@ -24,14 +26,11 @@ object Main extends ZIOAppDefault {
 
   implicit val _: Logger = LoggerFactory.getLogger(getClass)
 
-  val tmpSubscribeMessagesStream =  ZStream.tick(10.seconds).drop(1) <&> ZStream(Vector("1.193792920"), Vector("1.193792920", "1.193791701"))
+  val tmpSubscribeMessagesStream =  ZStream.tick(5.seconds).drop(1) <&> ZStream(Vector("1.193792920"), Vector("1.193792920", "1.193791701"))
 
-  val betfairStream: ZIO[ZEnv & LoggerAdapter & AppConfigService & BetfairService & SocketDescriptor & BetfairStreamService & MarketChangePublisher, Throwable, ZStream[Clock & BetfairService, Throwable, ResponseMessage]] = for {
+  val requestSinkAndResponseStream: ZIO[ZEnv & AppConfigService & SocketDescriptor & BetfairStreamService, Throwable, (Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock & BetfairService, Throwable, ResponseMessage])] = for {
     streamService <- ZIO.service[BetfairStreamService]
-    betfairService <- ZIO.service[BetfairService]
-    loggerAdapter <- ZIO.service[LoggerAdapter]
     appConfigService <- ZIO.service[AppConfigService]
-    marketChangePublisher <- ZIO.service[MarketChangePublisher]
     socketDescriptor <- ZIO.service[SocketDescriptor]
     counter <- Ref.make(0)
     (requestSink, responseStream) <- streamService.stream(socketDescriptor, counter)
@@ -39,26 +38,11 @@ object Main extends ZIOAppDefault {
     subFiber <- tmpSubscribeMessagesStream.mapZIO { marketIds =>
       for {
         id <- counter.getAndUpdate(_ + 1)
-        _ = println("Subscribing to : " + marketIds)
         config <- appConfigService.getAppConfig
       } yield buildSubscription(id, config.betfair.heartbeatRemote, marketIds)
     }.run(requestSink).fork
 
-    primaryStream = responseStream.mapZIO {
-
-      case msg@MarketChangeMessage(id, Some(Heartbeat), clk, heartbeatMs, pt, initialClk, mc, conflateMs, segmentType, status) =>
-        print("🥕")
-        ZIO.succeed( msg )
-
-      case msg@MarketChangeMessage(id, ct, clk, heartbeatMs, pt, initialClk, mc, conflateMs, segmentType, status) => for {
-        _ <- marketChangePublisher.handleMarketChangeMessage(msg)
-      } yield msg
-
-      case msg =>
-        ZIO.succeed( msg )
-    }
-
-  } yield primaryStream
+  } yield (requestSink, responseStream)
 
 
 
@@ -78,12 +62,25 @@ object Main extends ZIOAppDefault {
     )
   }
 
-
-
-
   val program = for {
-    _ <- ZStream.unwrap(betfairStream).runDrain
+    managedKafkaService   <- ZIO.service[ManagedKafkaService]
+
+    (requestSink, responseStream) <- requestSinkAndResponseStream
+
+    betfairResponsesHub   <- ZHub.unbounded[ResponseMessage]
+    sink                   = ZSink.fromHub(betfairResponsesHub)
+
+    kafkaChanges           = ZStream.fromHub(betfairResponsesHub)
+    displayChanges         = ZStream.fromHub(betfairResponsesHub)
+    displayHeartbeat       = ZStream.fromHub(betfairResponsesHub)
+
+    _                     <- kafkaChanges.via(kafkaPublishMarketChanges).runDrain.fork
+    _                     <- displayChanges.via(displayMarketChangeMessagePipeline).runDrain.fork
+    _                     <- displayHeartbeat.via(displayHeartbeatCarrotPipeline).runDrain.fork
+
+    betfairStreamFiber    <- responseStream.run(sink)  //Do this last after al subscriptions
   } yield ()
+
 
   private def errorHandler(throwable: Throwable): ZIO[LoggerAdapter, Nothing, Unit] =
     for {
@@ -105,7 +102,8 @@ object Main extends ZIOAppDefault {
       BetfairStreamService.live,
       LoggerAdapter.live,
       AppConfigService.live,
-      ManagedKafka.producer,
+      ManagedKafkaService.producer,  //TODO - should not need 2 from ManagedKafkaService
+      ManagedKafkaService.live,
       MarketChangePublisher.live
     )
 }
