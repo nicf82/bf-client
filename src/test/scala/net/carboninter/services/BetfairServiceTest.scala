@@ -8,15 +8,15 @@ import zio.test.*
 
 object BetfairServiceTest extends DefaultRunnableSpec:
 
-  val test1 = test("List market catalog - FIXME - calls live service") {
+  val test1 = test("List market catalog - FIXME - calls live service, so NEEDS creds set") {
     for {
       betfairIdentityService <- ZIO.service[BetfairIdentityService]
       betfairService <- ZIO.service[BetfairService]
       config <- ZIO.serviceWithZIO[AppConfigService](_.getAppConfig)
       creds <- betfairIdentityService.getCredentials
-      r <- betfairService.getMarketCatalog("1.194232285")
+      r <- betfairService.getMarketCatalog("1.193602267")
       _ = println(r)
-      r1 <- betfairService.getMarketCatalog("1.194232285")
+      r1 <- betfairService.getMarketCatalog("1.193602267")
       _ = println(r1)
     } yield assert(r)(Assertion.isSome)
   }

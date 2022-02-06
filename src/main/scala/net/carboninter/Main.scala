@@ -1,13 +1,13 @@
 package net.carboninter
 
-import net.carboninter.services.*
+import net.carboninter.services.{BetfairStreamService, *}
 import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter
 import zio.stream.*
 import zio.*
 import cats.syntax.show.*
 import net.carboninter.syntax.*
-import net.carboninter.models.{LocalMarketCatalog, LocalRunner}
+import net.carboninter.models.*
 
 import java.util.concurrent.TimeUnit
 import org.slf4j.{Logger, LoggerFactory}
@@ -24,48 +24,47 @@ object Main extends ZIOAppDefault {
 
   implicit val _: Logger = LoggerFactory.getLogger(getClass)
 
-  val program: RIO[ZEnv & LoggerAdapter & AppConfigService & BetfairService & BetfairStreamService, Unit] = for {
+  val tmpSubscribeMessagesStream =  ZStream.tick(10.seconds).drop(1) <&> ZStream(Vector("1.193792920"), Vector("1.193792920", "1.193791701"))
+
+  val betfairStream: ZIO[ZEnv & LoggerAdapter & AppConfigService & BetfairService & SocketDescriptor & BetfairStreamService & MarketChangePublisher, Throwable, ZStream[Clock & BetfairService, Throwable, ResponseMessage]] = for {
     streamService <- ZIO.service[BetfairStreamService]
     betfairService <- ZIO.service[BetfairService]
     loggerAdapter <- ZIO.service[LoggerAdapter]
     appConfigService <- ZIO.service[AppConfigService]
+    marketChangePublisher <- ZIO.service[MarketChangePublisher]
+    socketDescriptor <- ZIO.service[SocketDescriptor]
     counter <- Ref.make(0)
-    managedSocket = streamService.managedSocket
-    (publish, responseStream) <- streamService.stream(managedSocket, counter)
-    _ <- responseStream.mapZIO {
-      //Authentication response
-      case msg@StatusMessage(_, Some(i), None, None, _, _, Some(Success)) =>
-        for {
-          id <- counter.getAndUpdate(_ + 1)
-          config <- appConfigService.getAppConfig
-        } yield (msg, Some(buildSubscription(id, config.betfair.heartbeatRemote)))
+    (requestSink, responseStream) <- streamService.stream(socketDescriptor, counter)
+
+    subFiber <- tmpSubscribeMessagesStream.mapZIO { marketIds =>
+      for {
+        id <- counter.getAndUpdate(_ + 1)
+        _ = println("Subscribing to : " + marketIds)
+        config <- appConfigService.getAppConfig
+      } yield buildSubscription(id, config.betfair.heartbeatRemote, marketIds)
+    }.run(requestSink).fork
+
+    primaryStream = responseStream.mapZIO {
 
       case msg@MarketChangeMessage(id, Some(Heartbeat), clk, heartbeatMs, pt, initialClk, mc, conflateMs, segmentType, status) =>
         print("🥕")
-        ZIO.succeed( (msg, None) )
+        ZIO.succeed( msg )
 
       case msg@MarketChangeMessage(id, ct, clk, heartbeatMs, pt, initialClk, mc, conflateMs, segmentType, status) => for {
-        _ <- MarketChangeLogic.handleMarketChangeMessage(msg)
-      } yield (msg, None)
+        _ <- marketChangePublisher.handleMarketChangeMessage(msg)
+      } yield msg
 
       case msg =>
-        ZIO.succeed( (msg, None) )
-    }.tap {
-      case (msg, Some(m)) =>
-        publish(m) as msg
-      case (msg, None) =>
-        ZIO.succeed(msg)
-    }.runDrain
+        ZIO.succeed( msg )
+    }
 
-  } yield ()
+  } yield primaryStream
 
-  def buildSubscription(id: Int, hb: Int) = {
+
+
+  def buildSubscription(id: Int, hb: Int, markets: Vector[String]) = {
     val marketFilter = MarketFilter(
-//      countryCodes = Some(Vector("GB")),
-//      eventTypeIds = Some(Vector("7")),        //Horseys
-//      eventIds = Some(Vector("31212112")),     //Chepstow, Feb 4th
-      marketIds = Some(Vector("1.194278823")),// "1.194193568")), //16:00, 16:35
-//      bspMarket = Some(true)
+      marketIds = Some(markets)
     )
     MarketSubscriptionMessage(
       id = Some(id),
@@ -78,6 +77,13 @@ object Main extends ZIOAppDefault {
       marketDataFilter = None
     )
   }
+
+
+
+
+  val program = for {
+    _ <- ZStream.unwrap(betfairStream).runDrain
+  } yield ()
 
   private def errorHandler(throwable: Throwable): ZIO[LoggerAdapter, Nothing, Unit] =
     for {
@@ -93,5 +99,13 @@ object Main extends ZIOAppDefault {
     } yield ()
 
   def run: ZIO[Environment, Any, Any] = program.flatMapError(errorHandler)
-    .provideSome[Environment](BetfairIdentityService.live, BetfairService.live, BetfairStreamService.live, LoggerAdapter.live, AppConfigService.live)
+    .provideSome[Environment](BetfairIdentityService.live,
+      BetfairService.live,
+      ManagedSocket.socket,
+      BetfairStreamService.live,
+      LoggerAdapter.live,
+      AppConfigService.live,
+      ManagedKafka.producer,
+      MarketChangePublisher.live
+    )
 }

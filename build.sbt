@@ -17,6 +17,8 @@ val circeVersion           = "0.14.1"
 
 libraryDependencies += "com.github.cmincu" % "jbetfairng"  % "1.1.0-SNAPSHOT" exclude("org.jetbrains", "annotations")
 
+libraryDependencies += "org.apache.kafka" % "kafka-clients"  % "3.1.0"
+
 libraryDependencies += "dev.zio" %% "zio"                  % zioVersion
 libraryDependencies += "dev.zio" %% "zio-streams"          % zioVersion
 libraryDependencies += "dev.zio" %% "zio-config"           % zioConfigVersion

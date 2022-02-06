@@ -70,7 +70,6 @@ class LiveBetfairService(
     now <- ZIO.serviceWithZIO[Clock](_.instant)
     maybeCatalog <- ZIO.attempt {
 
-
       val catalogs = for (marketCatalogue <- result.getResponse.asScala) yield {
 
         val eventVenue = marketCatalogue.getEvent.getVenue
