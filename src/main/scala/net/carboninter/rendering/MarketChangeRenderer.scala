@@ -30,7 +30,7 @@ class LiveMarketChangeRenderer(appConfigService: AppConfigService, loggerAdapter
   implicit val _: Logger = LoggerFactory.getLogger(getClass)
 
   def renderMarketChangeMessage(mcm: MarketChangeMessage): RIO[Clock & BetfairService, Unit] = for {
-    publishTime    <- ZIO.fromOption(mcm.pt).mapError(rte("No publishTime"))
+    publishTime    <- ZIO.succeed(mcm.pt)
     changeType     =  mcm.ct
     _              =  coutl(C.BOLD, C.MAGENTA)(s"\npt: ${publishTime.toOffsetDateTime}, ct: $changeType")
     _              =  coutl(C.BOLD, C.MAGENTA)("======================================")

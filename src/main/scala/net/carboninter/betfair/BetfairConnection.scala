@@ -54,10 +54,10 @@ case class LiveBetfairConnection(socket: SSLSocket) extends BetfairConnection:
       } yield bytes
     }.map(_ => ())
 
-  override def close: UIO[Unit] =
-    for {
-      _ <- ZIO.succeed(socket.getInputStream.close())
-      _ <- ZIO.succeed(socket.getOutputStream.close())
-      _ <- ZIO.succeed(socket.close())
-    } yield ()
+  override def close: UIO[Unit] = ZIO.unit
+//    for {
+//      _ <- ZIO.succeed(socket.getInputStream.close())
+//      _ <- ZIO.succeed(socket.getOutputStream.close())
+//      _ <- ZIO.succeed(socket.close())
+//    } yield ()
 

@@ -21,7 +21,7 @@ import javax.net.SocketFactory
 import javax.net.ssl.{SSLParameters, SSLSocket, SSLSocketFactory}
 
 trait BetfairStreamService:
-  def stream(socketDescriptor: BetfairConnection, counter: Ref[Int]): UIO[(Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])]
+  def open(socketDescriptor: BetfairConnection): UIO[(Ref[Int], Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])]
 
 
 object BetfairStreamService:
@@ -33,14 +33,20 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
 
   implicit val logger: Logger = LoggerFactory.getLogger(getClass)
 
-  override def stream(socketDescriptor: BetfairConnection, counter: Ref[Int]): UIO[(Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])] = {
+  override def open(socketDescriptor: BetfairConnection): UIO[(Ref[Int], Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])] = {
 
     val requestSink: Sink[Throwable, RequestMessage, Nothing, Unit] = {
-      socketDescriptor.requestSink.contramap(request => request.asJson.noSpaces)
+      socketDescriptor.requestSink.contramapZIO { request =>
+        val m = request.asJson.noSpaces
+        for {
+          _ <- loggerAdapter.debug("Sending: " + m)
+        } yield m
+      }
     }
 
     for {
       config <- appConfigService.getAppConfig.map(_.betfair)
+      counter <- ZRef.make(0)
     } yield {
 
       val responseStream = ZStream.succeed(1)
@@ -88,7 +94,8 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
             }
 
         }
-      (requestSink, responseStream)
+
+      (counter, requestSink, responseStream)
     }
   }
 

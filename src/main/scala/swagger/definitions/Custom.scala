@@ -13,7 +13,7 @@ object PriceSize:
   }
 
   implicit val encodePriceSize: Encoder[PriceSize] = Encoder.encodeList[Double].contramapArray { x =>
-    List(x.size, x.price)
+    List(x.price, x.size)
   }
 
 case class LevelPriceSize(level: Int, price: Double, size: Double) {
@@ -27,5 +27,5 @@ object LevelPriceSize:
   }
 
   implicit val encodeLevelPriceSize: Encoder[LevelPriceSize] = Encoder.encodeList[Double].contramapArray { x =>
-    List(x.size, x.price)
+    List(x.level, x.price, x.size)
   }
