@@ -3,7 +3,6 @@ package net.carboninter.betfair
 import io.circe.*
 import io.circe.parser.*
 import io.circe.syntax.*
-import net.carboninter.Main.buildSubscription
 import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter
 import net.carboninter.models.*

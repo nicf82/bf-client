@@ -25,7 +25,7 @@ import net.carboninter.models.Command
 
 trait ManagedKafkaService:
   def splitStreams: URIO[Clock, (UStream[Command], UStream[MarketChangeMessage])]
-  def publishMarketChangeMessage(marketChangeMessage: MarketChangeMessage): Task[Unit] //Change to a sink
+  def marketChangeMessageTopicSink: ZSink[Any, Throwable, MarketChangeMessage, Nothing, Unit]
 
 
 object ManagedKafkaService:
@@ -132,7 +132,12 @@ case class LiveManagedKafkaService(appConfigService: AppConfigService, loggerAda
       ZStream.fromQueue(mcmQueue)
     )
 
-  override def publishMarketChangeMessage(marketChangeMessage: MarketChangeMessage): Task[Unit] = Task.asyncZIO[Unit] { cb =>
+
+  override val marketChangeMessageTopicSink: ZSink[Any, Throwable, MarketChangeMessage, Nothing, Unit] = ZSink.foreach[Any, Throwable, MarketChangeMessage] { mcm =>
+    publishMarketChangeMessage(mcm)
+  }
+
+  private def publishMarketChangeMessage(marketChangeMessage: MarketChangeMessage): Task[Unit] = Task.asyncZIO[Unit] { cb =>
 
     for {
       _ <- ZIO.attempt {

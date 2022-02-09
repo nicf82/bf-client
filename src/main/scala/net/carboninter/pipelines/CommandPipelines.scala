@@ -1,6 +1,5 @@
 package net.carboninter.pipelines
 
-import net.carboninter.Main.buildSubscription
 import net.carboninter.appconf.AppConfigService
 import net.carboninter.kafka.ManagedKafkaService
 import net.carboninter.models.*

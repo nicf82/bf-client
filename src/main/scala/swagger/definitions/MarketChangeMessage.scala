@@ -9,7 +9,18 @@ import io.circe._
 import io.circe.syntax._
 import cats.implicits._
 import _root_.swagger.Implicits._
-case class MarketChangeMessage(id: Option[Int] = None, ct: Option[MarketChangeMessage.Ct] = None, clk: Option[String] = None, heartbeatMs: Option[Long] = None, pt: Long, initialClk: Option[String] = None, mc: Option[_root_.scala.Vector[MarketChange]] = None, conflateMs: Option[Long] = None, segmentType: Option[MarketChangeMessage.SegmentType] = None, status: Option[Int] = None) extends ResponseMessage
+case class MarketChangeMessage(
+  id: Option[Int] = None,
+  ct: Option[MarketChangeMessage.Ct] = None,
+  clk: Option[String] = None,
+  heartbeatMs: Option[Long] = None,
+  pt: Long, initialClk: Option[String] = None,
+  mc: Option[_root_.scala.Vector[MarketChange]] = None,
+  conflateMs: Option[Long] = None,
+  segmentType: Option[MarketChangeMessage.SegmentType] = None,
+  status: Option[Int] = None
+) extends ResponseMessage
+
 object MarketChangeMessage {
   implicit val encodeMarketChangeMessage: _root_.io.circe.Encoder.AsObject[MarketChangeMessage] = {
     val readOnlyKeys = _root_.scala.Predef.Set[_root_.scala.Predef.String]()

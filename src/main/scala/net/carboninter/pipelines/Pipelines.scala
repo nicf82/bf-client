@@ -33,11 +33,9 @@ object Pipelines:
 //  extension (zPipeline: ZPipeline[R, E, In, Out])
 //    def flatMap[Out1](f: Out => Out1): ZPipeline[R, E, In, Out1] = zPipeline >>> ZPipeline.map[In, Out1]()
 
-  val kafkaPublishMarketChangeMessages: ZPipeline[ManagedKafkaService, Throwable, ResponseMessage, Unit] =
+  val collectMarketChangeMessages: ZPipeline[Any, Throwable, ResponseMessage, MarketChangeMessage] =
     ZPipeline.collect {
       case msg: MarketChangeMessage if msg.ct != Some(Heartbeat) => msg
-    } >>> ZPipeline.mapZIO { marketChangeMessage =>
-      ZIO.serviceWithZIO[ManagedKafkaService](_.publishMarketChangeMessage(marketChangeMessage))
     }
 
   val displayMarketChangeMessagePipeline: ZPipeline[Clock & BetfairService & MarketChangeRenderer, Throwable, ResponseMessage, Unit] =

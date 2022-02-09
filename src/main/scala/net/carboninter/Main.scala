@@ -61,7 +61,9 @@ object Main extends ZIOAppDefault {
     kafkaChanges                  = ZStream.fromHub(betfairResponsesHub)
     displayHeartbeat              = ZStream.fromHub(betfairResponsesHub)
 
-    _                            <- kafkaChanges.via(kafkaPublishMarketChangeMessages).runDrain.fork
+    _                            <- kafkaChanges.via(collectMarketChangeMessages)
+                                      .run(managedKafkaService.marketChangeMessageTopicSink).fork
+
     _                            <- displayHeartbeat
                                       .via(updateLastRemoteHeartbeatPipeline(lastRemoteHBAt))
                                       .via(displayHeartbeatCarrotPipeline)
