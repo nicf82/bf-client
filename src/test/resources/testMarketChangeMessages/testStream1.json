@@ -1,0 +1,360 @@
+[
+  {
+    "topic": "market_change_messages_raw",
+    "key": 1644346506480,
+    "value": {
+      "id": 1,
+      "ct": "SUB_IMAGE",
+      "clk": "AAAAAAAA",
+      "heartbeatMs": 5000,
+      "pt": 1644346506480,
+      "initialClk": "sxyEu4OeE70c5ZXmrxO2HMau9qwT",
+      "mc": [
+        {
+          "rc": [
+            {
+              "tv": 93930.86,
+              "batb": [
+              ],
+              "spb": null,
+              "bdatl": [
+              ],
+              "trd": [
+              ],
+              "spf": null,
+              "ltp": 3.15,
+              "atb": [
+                [
+                  3.05,
+                  3839.91
+                ],
+                [
+                  3,
+                  2034.11
+                ],
+                [
+                  2.88,
+                  0.04
+                ],
+                [
+                  3.1,
+                  2852.08
+                ],
+                [
+                  2.96,
+                  618.41
+                ],
+                [
+                  2.92,
+                  289.81
+                ],
+                [
+                  1.01,
+                  24555.16
+                ],
+                [
+                  1.05,
+                  1031.42
+                ],
+                [
+                  2.9,
+                  221.25
+                ],
+                [
+                  2.94,
+                  461.03
+                ],
+                [
+                  2.98,
+                  573.44
+                ],
+                [
+                  1.09,
+                  500
+                ],
+                [
+                  2.86,
+                  40.6
+                ],
+                [
+                  1.5,
+                  0.1
+                ],
+                [
+                  1.04,
+                  5373.53
+                ],
+                [
+                  1.02,
+                  11752.07
+                ],
+                [
+                  1.03,
+                  8216.92
+                ],
+                [
+                  2.82,
+                  9.33
+                ],
+                [
+                  2.78,
+                  8
+                ],
+                [
+                  2.84,
+                  100
+                ],
+                [
+                  1.07,
+                  1000
+                ],
+                [
+                  2.66,
+                  0.04
+                ],
+                [
+                  1.75,
+                  20
+                ],
+                [
+                  2.58,
+                  8
+                ],
+                [
+                  2.7,
+                  8
+                ],
+                [
+                  1.06,
+                  1000
+                ]
+              ],
+              "spl": null,
+              "spn": null,
+              "atl": [
+              ],
+              "batl": [
+              ],
+              "id": 56343,
+              "hc": null,
+              "bdatb": [
+              ]
+            }
+          ],
+          "img": true,
+          "tv": 386615.31,
+          "con": null,
+          "marketDefinition": {
+            "venue": null,
+            "raceType": null,
+            "settledTime": null,
+            "timezone": "Europe/London",
+            "eachWayDivisor": null,
+            "regulators": [
+              "MR_INT"
+            ],
+            "marketType": "MATCH_ODDS",
+            "marketBaseRate": 5,
+            "numberOfWinners": 1,
+            "countryCode": "GB",
+            "lineMaxUnit": null,
+            "inPlay": false,
+            "betDelay": 0,
+            "bspMarket": false,
+            "bettingType": "ODDS",
+            "numberOfActiveRunners": 3,
+            "lineMinUnit": null,
+            "eventId": "31180798",
+            "crossMatching": true,
+            "runnersVoidable": false,
+            "turnInPlayEnabled": true,
+            "priceLadderDefinition": {
+              "type": "CLASSIC"
+            },
+            "keyLineDefinition": null,
+            "suspendTime": "2022-02-08T19:45:00Z",
+            "discountAllowed": true,
+            "persistenceEnabled": true,
+            "runners": [
+              {
+                "sortPriority": 1,
+                "removalDate": null,
+                "id": 25422,
+                "hc": null,
+                "adjustmentFactor": null,
+                "bsp": null,
+                "status": "ACTIVE"
+              },
+              {
+                "sortPriority": 2,
+                "removalDate": null,
+                "id": 56343,
+                "hc": null,
+                "adjustmentFactor": null,
+                "bsp": null,
+                "status": "ACTIVE"
+              },
+              {
+                "sortPriority": 3,
+                "removalDate": null,
+                "id": 58805,
+                "hc": null,
+                "adjustmentFactor": null,
+                "bsp": null,
+                "status": "ACTIVE"
+              }
+            ],
+            "version": 4307432571,
+            "eventTypeId": "1",
+            "complete": true,
+            "openDate": "2022-02-08T19:45:00Z",
+            "marketTime": "2022-02-08T19:45:00Z",
+            "bspReconciled": false,
+            "lineInterval": null,
+            "status": "OPEN"
+          },
+          "id": "1.193495765"
+        }
+      ],
+      "conflateMs": 180000,
+      "segmentType": null,
+      "status": null
+    },
+    "partition": 0,
+    "offset": 0,
+    "$$hashKey": "object:350"
+  },
+  {
+    "topic": "market_change_messages_raw",
+    "key": 1644346686489,
+    "value": {
+      "id": 1,
+      "ct": null,
+      "clk": "AO+4AQD1nQEA9pcB",
+      "heartbeatMs": null,
+      "pt": 1644346686489,
+      "initialClk": null,
+      "mc": [
+        {
+          "rc": [
+            {
+              "tv": 95433.85,
+              "batb": [
+              ],
+              "spb": null,
+              "bdatl": [
+              ],
+              "trd": [
+              ],
+              "spf": "99.9",
+              "ltp": 3.1,
+              "atb": [
+                [
+                  3.05,
+                  3993.35
+                ],
+                [
+                  3.1,
+                  2074.63
+                ],
+                [
+                  3,
+                  2214.43
+                ]
+              ],
+              "spl": null,
+              "spn": null,
+              "atl": [
+              ],
+              "batl": [
+              ],
+              "id": 56343,
+              "hc": null,
+              "bdatb": [
+              ]
+            }
+          ],
+          "img": null,
+          "tv": 392717.48,
+          "con": true,
+          "marketDefinition": {
+            "venue": null,
+            "raceType": null,
+            "settledTime": null,
+            "timezone": "Europe/London",
+            "eachWayDivisor": null,
+            "regulators": [
+              "MR_INT"
+            ],
+            "marketType": "MATCH_ODDS",
+            "marketBaseRate": 5,
+            "numberOfWinners": 1,
+            "countryCode": "GB",
+            "lineMaxUnit": null,
+            "inPlay": false,
+            "betDelay": 0,
+            "bspMarket": false,
+            "bettingType": "ODDS",
+            "numberOfActiveRunners": 3,
+            "lineMinUnit": null,
+            "eventId": "31180798",
+            "crossMatching": true,
+            "runnersVoidable": false,
+            "turnInPlayEnabled": true,
+            "priceLadderDefinition": {
+              "type": "CLASSIC"
+            },
+            "keyLineDefinition": null,
+            "suspendTime": "2022-02-08T19:45:00Z",
+            "discountAllowed": true,
+            "persistenceEnabled": true,
+            "runners": [
+              {
+                "sortPriority": 1,
+                "removalDate": null,
+                "id": 25422,
+                "hc": null,
+                "adjustmentFactor": null,
+                "bsp": null,
+                "status": "ACTIVE"
+              },
+              {
+                "sortPriority": 2,
+                "removalDate": null,
+                "id": 56343,
+                "hc": null,
+                "adjustmentFactor": null,
+                "bsp": null,
+                "status": "ACTIVE"
+              },
+              {
+                "sortPriority": 3,
+                "removalDate": null,
+                "id": 58805,
+                "hc": null,
+                "adjustmentFactor": null,
+                "bsp": null,
+                "status": "ACTIVE"
+              }
+            ],
+            "version": 4334472374,
+            "eventTypeId": "1",
+            "complete": true,
+            "openDate": "2022-02-08T19:45:00Z",
+            "marketTime": "2022-02-08T19:45:00Z",
+            "bspReconciled": false,
+            "lineInterval": null,
+            "status": "OPEN"
+          },
+          "id": "1.193495765"
+        }
+      ],
+      "conflateMs": null,
+      "segmentType": null,
+      "status": null
+    },
+    "partition": 0,
+    "offset": 1,
+    "$$hashKey": "object:351"
+  }
+]

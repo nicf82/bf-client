@@ -9,7 +9,43 @@ import io.circe._
 import io.circe.syntax._
 import cats.implicits._
 import _root_.swagger.Implicits._
-case class MarketDefinition(venue: Option[String] = None, raceType: Option[String] = None, settledTime: Option[java.time.OffsetDateTime] = None, timezone: Option[String] = None, eachWayDivisor: Option[Double] = None, regulators: Option[Vector[String]] = None, marketType: Option[String] = None, marketBaseRate: Option[Double] = None, numberOfWinners: Option[Int] = None, countryCode: Option[String] = None, lineMaxUnit: Option[Double] = None, inPlay: Option[Boolean] = None, betDelay: Option[Int] = None, bspMarket: Option[Boolean] = None, bettingType: Option[MarketDefinition.BettingType] = None, numberOfActiveRunners: Option[Int] = None, lineMinUnit: Option[Double] = None, eventId: Option[String] = None, crossMatching: Option[Boolean] = None, runnersVoidable: Option[Boolean] = None, turnInPlayEnabled: Option[Boolean] = None, priceLadderDefinition: Option[PriceLadderDefinition] = None, keyLineDefinition: Option[KeyLineDefinition] = None, suspendTime: Option[java.time.OffsetDateTime] = None, discountAllowed: Option[Boolean] = None, persistenceEnabled: Option[Boolean] = None, runners: Option[_root_.scala.Vector[RunnerDefinition]] = None, version: Option[Long] = None, eventTypeId: Option[String] = None, complete: Option[Boolean] = None, openDate: Option[java.time.OffsetDateTime] = None, marketTime: Option[java.time.OffsetDateTime] = None, bspReconciled: Option[Boolean] = None, lineInterval: Option[Double] = None, status: Option[MarketDefinition.Status] = None)
+case class MarketDefinition(
+  venue: Option[String] = None, 
+  raceType: Option[String] = None, 
+  settledTime: Option[java.time.OffsetDateTime] = None, 
+  timezone: Option[String] = None, 
+  eachWayDivisor: Option[Double] = None, 
+  regulators: Option[Vector[String]] = None, 
+  marketType: Option[String] = None, 
+  marketBaseRate: Option[Double] = None, 
+  numberOfWinners: Option[Int] = None, 
+  countryCode: Option[String] = None, 
+  lineMaxUnit: Option[Double] = None, 
+  inPlay: Option[Boolean] = None, 
+  betDelay: Option[Int] = None, 
+  bspMarket: Option[Boolean] = None, 
+  bettingType: Option[MarketDefinition.BettingType] = None, 
+  numberOfActiveRunners: Option[Int] = None, 
+  lineMinUnit: Option[Double] = None, 
+  eventId: Option[String] = None, 
+  crossMatching: Option[Boolean] = None, 
+  runnersVoidable: Option[Boolean] = None, 
+  turnInPlayEnabled: Option[Boolean] = None, 
+  priceLadderDefinition: Option[PriceLadderDefinition] = None, 
+  keyLineDefinition: Option[KeyLineDefinition] = None, 
+  suspendTime: Option[java.time.OffsetDateTime] = None, 
+  discountAllowed: Option[Boolean] = None, 
+  persistenceEnabled: Option[Boolean] = None, 
+  runners: Option[_root_.scala.Vector[RunnerDefinition]] = None, 
+  version: Option[Long] = None, 
+  eventTypeId: Option[String] = None, 
+  complete: Option[Boolean] = None, 
+  openDate: Option[java.time.OffsetDateTime] = None, 
+  marketTime: Option[java.time.OffsetDateTime] = None, 
+  bspReconciled: Option[Boolean] = None, 
+  lineInterval: Option[Double] = None, 
+  status: Option[MarketDefinition.Status] = None
+)
 object MarketDefinition {
   implicit val encodeMarketDefinition: _root_.io.circe.Encoder.AsObject[MarketDefinition] = {
     val readOnlyKeys = _root_.scala.Predef.Set[_root_.scala.Predef.String]()

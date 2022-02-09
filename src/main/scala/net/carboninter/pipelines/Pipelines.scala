@@ -3,6 +3,10 @@ package net.carboninter.pipelines
 import net.carboninter.kafka.ManagedKafkaService
 import net.carboninter.rendering.MarketChangeRenderer
 import net.carboninter.betfair.*
+import net.carboninter.logging.LoggerAdapter
+import net.carboninter.models.{MarketChangeEnvelope, MarketChangeMergeTools}
+import org.slf4j.*
+import swagger.definitions.MarketChangeMessage.Ct
 import swagger.definitions.MarketChangeMessage.Ct.Heartbeat
 import swagger.definitions.{MarketChange, MarketChangeMessage, ResponseMessage}
 import zio.*
@@ -12,40 +16,51 @@ import java.time.Instant
 
 object Pipelines:
 
-//  val flatMapMarketChangesPipeline: ZPipeline[Any, Nothing, ResponseMessage, MarketChange] =
-//    ZPipeline.collect {
-//      case message: MarketChangeMessage if message.ct != Some(Heartbeat) => message
-//    } >>> ZPipeline.mapChunks { responseMessages =>
-//      for {
-//        message <- responseMessages
-//        marketChange <- message.mc.getOrElse(Nil).toList
-//      } yield marketChange
-//    }
-
-//  val kafkaPublishMarketChanges: ZPipeline[ManagedKafkaService, Throwable, ResponseMessage, MarketChange] =
-//    flatMapMarketChangesPipeline >>> ZPipeline.mapZIO { marketChange =>
-//      for {
-//        managedKafkaService <- ZIO.service[ManagedKafkaService]
-//        _ <- managedKafkaService.publishMarketChange(marketChange)
-//      } yield marketChange
-//    }
-
-//  extension (zPipeline: ZPipeline[R, E, In, Out])
-//    def flatMap[Out1](f: Out => Out1): ZPipeline[R, E, In, Out1] = zPipeline >>> ZPipeline.map[In, Out1]()
+  import MarketChangeMergeTools._
 
   val collectMarketChangeMessages: ZPipeline[Any, Throwable, ResponseMessage, MarketChangeMessage] =
     ZPipeline.collect {
       case msg: MarketChangeMessage if msg.ct != Some(Heartbeat) => msg
     }
 
-  val displayMarketChangeMessagePipeline: ZPipeline[Clock & BetfairService & MarketChangeRenderer, Throwable, ResponseMessage, Unit] =
-    ZPipeline.collect {
-      case message: MarketChangeMessage if message.ct != Some(Heartbeat) => message
-    } >>> ZPipeline.mapZIO { message =>
+  val extractMarketChangeEnvelopesPipeline: ZPipeline[Any, Throwable, MarketChangeMessage, MarketChangeEnvelope] =
+    ZPipeline.mapChunks { marketChangeMessages =>
+      for {
+        marketChangeMessage  <- marketChangeMessages
+        marketChangeEnvelope <- marketChangeMessage.mc.getOrElse(Nil).toList
+                                  .map( MarketChangeEnvelope(_, marketChangeMessage.ct != Some(Ct.SubImage)) )
+      } yield marketChangeEnvelope
+    }
+
+  val hydrateMarketChangeFromCache: ZPipeline[MarketChangeCache, Throwable, MarketChangeEnvelope, MarketChange] =
+    ZPipeline.mapZIO { marketChangeEnvelope =>
+      for {
+        cache        <- ZIO.service[MarketChangeCache]
+        marketChange  = marketChangeEnvelope.marketChange
+        mcNew        <- ZIO.ifZIO(ZIO.succeed(marketChangeEnvelope.isDelta))(
+          cache.updateAndGet(_.updatedWith(marketChange.id)(original => original.map(mergeMC(_, marketChange)))),  //Deltas are merged into cache//A SubImage replaces the cache
+          cache.updateAndGet(_.updated(marketChange.id, marketChange))                                             //A SubImage replaces the cache
+        )
+      } yield mcNew(marketChange.id)
+    }
+
+
+//  val displayMarketChangeMessagePipeline: ZPipeline[Clock & BetfairService & MarketChangeRenderer, Throwable, ResponseMessage, Unit] =
+//    ZPipeline.collect {
+//      case message: MarketChangeMessage if message.ct != Some(Heartbeat) => message
+//    } >>> ZPipeline.mapZIO { message =>
+//      for {
+//        marketChangePublisher <- ZIO.service[MarketChangeRenderer]
+//        _ <- marketChangePublisher.renderMarketChangeMessage(message)
+//      } yield ()
+//    }
+
+  val displayMarketChangePipeline: ZPipeline[Clock & BetfairService & MarketChangeRenderer, Throwable, MarketChangeEnvelope, MarketChangeEnvelope] =
+    ZPipeline.mapZIO { marketChangeEnvelope =>
       for {
         marketChangePublisher <- ZIO.service[MarketChangeRenderer]
-        _ <- marketChangePublisher.renderMarketChangeMessage(message)
-      } yield ()
+        _ <- marketChangePublisher.renderMarketChange(marketChangeEnvelope.marketChange)
+      } yield marketChangeEnvelope
     }
 
   val displayHeartbeatCarrotPipeline: ZPipeline[Console, Throwable, ResponseMessage, ResponseMessage] = ZPipeline.mapZIO { message =>

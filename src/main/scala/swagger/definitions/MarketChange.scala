@@ -9,7 +9,14 @@ import io.circe._
 import io.circe.syntax._
 import cats.implicits._
 import _root_.swagger.Implicits._
-case class MarketChange(rc: Option[_root_.scala.Vector[RunnerChange]] = None, img: Option[Boolean] = None, tv: Option[Double] = None, con: Option[Boolean] = None, marketDefinition: Option[MarketDefinition] = None, id: String)
+case class MarketChange(
+  rc: Option[_root_.scala.Vector[RunnerChange]] = None, 
+  img: Option[Boolean] = None, 
+  tv: Option[Double] = None, 
+  con: Option[Boolean] = None, 
+  marketDefinition: Option[MarketDefinition] = None, 
+  id: String
+)
 object MarketChange {
   implicit val encodeMarketChange: _root_.io.circe.Encoder.AsObject[MarketChange] = {
     val readOnlyKeys = _root_.scala.Predef.Set[_root_.scala.Predef.String]()

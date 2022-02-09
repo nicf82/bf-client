@@ -1,8 +1,12 @@
 package net.carboninter.pipelines
 
+import net.carboninter.Main.getClass
 import net.carboninter.appconf.AppConfigService
+import net.carboninter.betfair.*
 import net.carboninter.kafka.ManagedKafkaService
+import net.carboninter.logging.LoggerAdapter
 import net.carboninter.models.*
+import org.slf4j.{Logger, LoggerFactory}
 import swagger.definitions.*
 import swagger.definitions.MarketChangeMessage.Ct.Heartbeat
 import zio.{Clock, Ref, ZIO}
@@ -13,11 +17,14 @@ import zio.metrics.MetricKey.Counter
 
 object CommandPipelines {
 
-  def subscriptionCommandsPipeline(heartbeatRemote: Int, counter: Ref[Int]): ZPipeline[Any, Throwable, Command, MarketSubscriptionMessage] =
-    ZPipeline.collect {
+  implicit val _: Logger = LoggerFactory.getLogger(getClass)
+
+  def subscriptionCommandsPipeline(heartbeatRemote: Int, counter: BetfairStreamCounterRef): ZPipeline[LoggerAdapter, Throwable, Command, MarketSubscriptionMessage] =
+    ZPipeline.collect[Command, SubscribeCommand] {
       case subscribeCommand: SubscribeCommand => subscribeCommand
     } >>> ZPipeline.mapZIO { subscribeCommand =>
       for {
+        _ <- LoggerAdapter.info("Subscribing to markets: " + subscribeCommand.marketIds.mkString(", "))
         i <- counter.getAndUpdate(_+1)
       } yield buildSubscription(i, heartbeatRemote, subscribeCommand.marketIds.toVector)
     }

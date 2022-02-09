@@ -14,6 +14,7 @@ import scala.Console as C
 
 trait MarketChangeRenderer:
   def renderMarketChangeMessage(mcm: MarketChangeMessage): RIO[Clock & BetfairService, Unit]
+  def renderMarketChange(mc: MarketChange): RIO[Clock & BetfairService, Unit]
 
 
 object MarketChangeRenderer:
@@ -34,10 +35,10 @@ class LiveMarketChangeRenderer(appConfigService: AppConfigService, loggerAdapter
     changeType     =  mcm.ct
     _              =  coutl(C.BOLD, C.MAGENTA)(s"\npt: ${publishTime.toOffsetDateTime}, ct: $changeType")
     _              =  coutl(C.BOLD, C.MAGENTA)("======================================")
-    _              <- ZIO.foreach(mcm.mc.getOrElse(Nil).toList)(handleMarketChange(_))
+    _              <- ZIO.foreach(mcm.mc.getOrElse(Nil).toList)(renderMarketChange(_))
   } yield ()
 
-  def handleMarketChange(mc: MarketChange): RIO[Clock & BetfairService, Unit] = for {
+  def renderMarketChange(mc: MarketChange): RIO[Clock & BetfairService, Unit] = for {
     marketId       <- ZIO.succeed(mc.id)
     marketDef      =  mc.marketDefinition
     venue          =  marketDef.flatMap(_.venue)

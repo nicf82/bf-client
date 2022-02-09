@@ -20,7 +20,7 @@ import javax.net.SocketFactory
 import javax.net.ssl.{SSLParameters, SSLSocket, SSLSocketFactory}
 
 trait BetfairStreamService:
-  def open(socketDescriptor: BetfairConnection): UIO[(Ref[Int], Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])]
+  def open(socketDescriptor: BetfairConnection): UIO[(BetfairStreamCounterRef, Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])]
 
 
 object BetfairStreamService:
@@ -32,7 +32,7 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
 
   implicit val logger: Logger = LoggerFactory.getLogger(getClass)
 
-  override def open(socketDescriptor: BetfairConnection): UIO[(Ref[Int], Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])] = {
+  override def open(socketDescriptor: BetfairConnection): UIO[(BetfairStreamCounterRef, Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])] = {
 
     val requestSink: Sink[Throwable, RequestMessage, Nothing, Unit] = {
       socketDescriptor.requestSink.contramapZIO { request =>
