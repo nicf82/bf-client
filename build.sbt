@@ -15,8 +15,6 @@ val asyncHttpClientVersion = "3.3.18"
 val zioJsonVersion         = "0.3.0-RC2"
 val circeVersion           = "0.14.1"
 
-libraryDependencies += "com.github.cmincu" % "jbetfairng"  % "1.1.0-SNAPSHOT" exclude("org.jetbrains", "annotations")
-
 libraryDependencies += "org.apache.kafka" % "kafka-clients"  % "3.1.0"
 
 libraryDependencies += "dev.zio" %% "zio"                  % zioVersion
