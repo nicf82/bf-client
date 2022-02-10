@@ -55,7 +55,7 @@ object Pipelines:
 //      } yield ()
 //    }
 
-  val displayMarketChangePipeline: ZPipeline[Clock & BetfairService & MarketChangeRenderer, Throwable, MarketChangeEnvelope, MarketChangeEnvelope] =
+  val displayMarketChangePipeline: ZPipeline[Clock & MarketChangeRenderer, Throwable, MarketChangeEnvelope, MarketChangeEnvelope] =
     ZPipeline.mapZIO { marketChangeEnvelope =>
       for {
         marketChangePublisher <- ZIO.service[MarketChangeRenderer]

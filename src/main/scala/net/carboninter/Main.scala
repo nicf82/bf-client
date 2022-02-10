@@ -29,7 +29,7 @@ object Main extends ZIOAppDefault {
 
   implicit val _: Logger = LoggerFactory.getLogger(getClass)
 
-  val betfairCounterReqSinkAndRespStream: ZIO[ZEnv & AppConfigService & BetfairConnection & BetfairStreamService, Throwable, (BetfairStreamCounterRef, Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock & BetfairService, Throwable, ResponseMessage])] = for {
+  val betfairCounterReqSinkAndRespStream: ZIO[ZEnv & AppConfigService & BetfairConnection & BetfairStreamService, Throwable, (BetfairStreamCounterRef, Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])] = for {
     streamService <- ZIO.service[BetfairStreamService]
     socketDescriptor <- ZIO.service[BetfairConnection]
     crr <- streamService.open(socketDescriptor)
@@ -104,7 +104,6 @@ object Main extends ZIOAppDefault {
 
   def run: ZIO[Environment, Any, Any] = program.flatMapError(errorHandler)
     .provideSome[Environment](BetfairIdentityService.live,
-      BetfairService.live,
       BetfairConnection.live,
       BetfairStreamService.live,
       LoggerAdapter.live,
