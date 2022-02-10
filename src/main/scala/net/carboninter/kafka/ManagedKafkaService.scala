@@ -57,15 +57,23 @@ object ManagedKafkaService:
     }
     _      <- ZIO.attemptBlocking {
 
-      val compactTopicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT)
 
-      val newTopics = List(config.topics.marketChangeMessageDeltasTopic, config.topics.marketChangesTopic, config.topics.commandsTopic) map { conf =>
-        new NewTopic(conf.name, conf.partitions, conf.replication).configs(conf.config.getOrElse(Map.empty).asJava)
+      val topics = admin.listTopics().names()
+      val existingTopics = topics.get().asScala.toList
+
+      val desiredTopics = List(config.topics.marketChangeMessageDeltasTopic, config.topics.marketChangesTopic, config.topics.commandsTopic)
+                            .filter(t => !existingTopics.contains(t.name))
+
+      if(!desiredTopics.isEmpty) {
+        val compactTopicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT)
+
+        val newTopics = desiredTopics map { conf =>
+          new NewTopic(conf.name, conf.partitions, conf.replication).configs(conf.config.getOrElse(Map.empty).asJava)
+        }
+
+        val res = admin.createTopics(newTopics.asJava)
+        res.all().get()
       }
-
-      val res = admin.createTopics(newTopics.asJava)
-
-      res.all().get()
     }
   } yield admin
 
