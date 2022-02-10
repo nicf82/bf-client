@@ -22,34 +22,52 @@ import io.circe.syntax.*
 import io.circe.parser.*
 import net.carboninter.Main
 import net.carboninter.models.Command
+import org.apache.kafka.clients.admin.{Admin, AdminClientConfig, CreateTopicsOptions, NewTopic}
+import org.apache.kafka.common.config.TopicConfig
 
 trait ManagedKafkaService:
-  def splitStreams: URIO[Clock, (UStream[Command], UStream[MarketChangeMessage])]
-  def marketChangeMessageDeltaTopicSink: ZSink[Any, Throwable, MarketChangeMessage, Nothing, Unit]
-  def marketChangeTopicSink: ZSink[Any, Throwable, MarketChange, Nothing, Unit]
+  def splitStreams: URIO[Clock & AppConfigService, (UStream[Command], UStream[MarketChangeMessage])]
+  def marketChangeMessageDeltaTopicSink: ZSink[AppConfigService, Throwable, MarketChangeMessage, Nothing, Unit]
+  def marketChangeTopicSink: ZSink[AppConfigService, Throwable, MarketChange, Nothing, Unit]
 
 
 object ManagedKafkaService:
 
-  val MarketChangeMessageDeltasTopic = "market_change_message_deltas"
-  val MarketChangesTopic = "market_changes"
-  val CommandsTopic = "commands"
-
-  val SubscribeTopics = List(MarketChangeMessageDeltasTopic, MarketChangesTopic, CommandsTopic)
-
   val live: ZLayer[AppConfigService & LoggerAdapter, Throwable, ManagedKafkaService] = {
     val producer = ZManaged.acquireReleaseWith(createKafkaProducer)(p => ZIO.succeed(p.close())).toLayer
-    val consumer = ZManaged.acquireReleaseWith(createConsumer)(p => ZIO.succeed(p.close())).toLayer  //TODO - how to handle errors at this location???
-    (producer ++ consumer) >>>
+    val consumer = createKafkaConsumer.toLayer
+    val admin    = createKafkaAdmin.toLayer
+    (admin >>> (producer ++ consumer)) >>>
       ZLayer.fromZIO {
         for {
           appConfigService <- ZIO.service[AppConfigService]
-          loggerAdapter <- ZIO.service[LoggerAdapter]
-          producer <- ZIO.service[KafkaProducer[String, String]]
-          consumer <- ZIO.service[KafkaConsumer[String, Json]]
+          loggerAdapter    <- ZIO.service[LoggerAdapter]
+          producer         <- ZIO.service[KafkaProducer[String, String]]
+          consumer         <- ZIO.service[KafkaConsumer[String, Json]]
         } yield LiveManagedKafkaService(appConfigService, loggerAdapter, producer, consumer)
       }
   }
+
+  private def createKafkaAdmin: RIO[AppConfigService, Admin] = for {
+    config <- ZIO.serviceWithZIO[AppConfigService](_.getAppConfig.map(_.kafka))
+    admin  <- ZIO.attempt {
+      val properties = new Properties
+      properties.setProperty(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, config.bootstrapServers)
+      Admin.create(properties)
+    }
+    _      <- ZIO.attemptBlocking {
+
+      val compactTopicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT)
+
+      val newTopics = List(config.topics.marketChangeMessageDeltasTopic, config.topics.marketChangesTopic, config.topics.commandsTopic) map { conf =>
+        new NewTopic(conf.name, conf.partitions, conf.replication).configs(conf.config.getOrElse(Map.empty).asJava)
+      }
+
+      val res = admin.createTopics(newTopics.asJava)
+
+      res.all().get()
+    }
+  } yield admin
 
   private def createKafkaProducer: RIO[AppConfigService, KafkaProducer[String, String]] = for {
     config <- ZIO.serviceWithZIO[AppConfigService](_.getAppConfig.map(_.kafka))
@@ -72,8 +90,8 @@ object ManagedKafkaService:
       new KafkaProducer[String, String](properties)
     }
   } yield producer
-  
-  private def createConsumer: RIO[AppConfigService, KafkaConsumer[String, Json]] = for {
+
+  private def createKafkaConsumer: RIO[Admin & AppConfigService, KafkaConsumer[String, Json]] = for {
     config <- ZIO.serviceWithZIO[AppConfigService](_.getAppConfig.map(_.kafka))
     consumer <- ZIO.attempt {
       // create consumer configs
@@ -87,12 +105,19 @@ object ManagedKafkaService:
       properties.setProperty(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "100")
       // create consumer
       val consumer = new KafkaConsumer[String, Json](properties)
-      consumer.subscribe(SubscribeTopics.asJava)
+      val subscribeTopics = List(config.topics.marketChangeMessageDeltasTopic, config.topics.marketChangesTopic, config.topics.commandsTopic)
+        .filter(_.subscribe).map(_.name)
+      consumer.subscribe(subscribeTopics.asJava)
       consumer
     }
   } yield consumer
 
-case class LiveManagedKafkaService(appConfigService: AppConfigService, loggerAdapter: LoggerAdapter, producer: KafkaProducer[String, String], consumer: KafkaConsumer[String, Json]) extends ManagedKafkaService:
+case class LiveManagedKafkaService(
+  appConfigService: AppConfigService,
+  loggerAdapter: LoggerAdapter,
+  producer: KafkaProducer[String, String],
+  consumer: KafkaConsumer[String, Json]
+) extends ManagedKafkaService:
 
   import ManagedKafkaService._
   implicit val _: Logger = LoggerFactory.getLogger(getClass)
@@ -109,13 +134,14 @@ case class LiveManagedKafkaService(appConfigService: AppConfigService, loggerAda
       } yield ()).forever.fork
     }
 
-  override def splitStreams: URIO[Clock, (UStream[Command], UStream[MarketChangeMessage])] = for {
+  override def splitStreams: URIO[Clock & AppConfigService, (UStream[Command], UStream[MarketChangeMessage])] = for {
     commandQueue   <- ZQueue.bounded[Command](256)
     mcmQueue       <- ZQueue.bounded[MarketChangeMessage](256)
+    topics <- ZIO.serviceWithZIO[AppConfigService](_.getAppConfig.map(_.kafka.topics))
     ts             <- unifiedStream.tap { cr =>
       for {
 
-        commands <- ZIO.foreach(cr.records(CommandsTopic).asScala.toList) { command =>
+        commands <- ZIO.foreach(cr.records(topics.commandsTopic.name).asScala.toList) { command =>
                       ZIO.fromEither(command.value().as[Command]).map(Some(_)).catchAll { e =>
                         for {
                           _ <- loggerAdapter.warn("Error consuming command from Kafka", e)
@@ -123,8 +149,8 @@ case class LiveManagedKafkaService(appConfigService: AppConfigService, loggerAda
                       }
                     }
         _        <- commandQueue.offerAll(commands.flatten)
-  
-        deltas   <- ZIO.foreach(cr.records(MarketChangeMessageDeltasTopic).asScala.toList) { mcm =>
+
+        deltas   <- ZIO.foreach(cr.records(topics.marketChangeMessageDeltasTopic.name).asScala.toList) { mcm =>
                       ZIO.fromEither(mcm.value().as[MarketChangeMessage]).map(Some(_)).catchAll { e =>
                         for {
                           _ <- loggerAdapter.warn("Error consuming MarketChangeMessage from Kafka", e)
@@ -140,12 +166,12 @@ case class LiveManagedKafkaService(appConfigService: AppConfigService, loggerAda
     )
 
 
-  override val marketChangeMessageDeltaTopicSink: ZSink[Any, Throwable, MarketChangeMessage, Nothing, Unit] = ZSink.foreach[Any, Throwable, MarketChangeMessage] { marketChangeMessage =>
-    Task.asyncZIO[Unit] { cb =>
-
+  override val marketChangeMessageDeltaTopicSink: ZSink[AppConfigService, Throwable, MarketChangeMessage, Nothing, Unit] = ZSink.foreach[AppConfigService, Throwable, MarketChangeMessage] { marketChangeMessage =>
+    ZIO.asyncZIO[AppConfigService, Throwable, Unit] { cb =>
       for {
+        topics <- ZIO.serviceWithZIO[AppConfigService](_.getAppConfig.map(_.kafka.topics))
         _ <- ZIO.attempt {
-          producer.send(new ProducerRecord[String, String](MarketChangeMessageDeltasTopic, marketChangeMessage.pt.toString, marketChangeMessage.asJson.noSpaces), new Callback() {
+          producer.send(new ProducerRecord[String, String](topics.marketChangeMessageDeltasTopic.name, marketChangeMessage.pt.toString, marketChangeMessage.asJson.noSpaces), new Callback() {
             override def onCompletion(recordMetadata: RecordMetadata, e: Exception): Unit = {
               if (e == null) {
                 cb(ZIO.unit)
@@ -161,12 +187,12 @@ case class LiveManagedKafkaService(appConfigService: AppConfigService, loggerAda
   }
 
 
-  override val marketChangeTopicSink: ZSink[Any, Throwable, MarketChange, Nothing, Unit] = ZSink.foreach[Any, Throwable, MarketChange] { marketChange =>
-    Task.asyncZIO[Unit] { cb =>
-
+  override val marketChangeTopicSink: ZSink[AppConfigService, Throwable, MarketChange, Nothing, Unit] = ZSink.foreach[AppConfigService, Throwable, MarketChange] { marketChange =>
+    ZIO.asyncZIO[AppConfigService, Throwable, Unit] { cb =>
       for {
+        topics <- ZIO.serviceWithZIO[AppConfigService](_.getAppConfig.map(_.kafka.topics))
         _ <- ZIO.attempt {
-          producer.send(new ProducerRecord[String, String](MarketChangesTopic, marketChange.id, marketChange.asJson.noSpaces), new Callback() {
+          producer.send(new ProducerRecord[String, String](topics.marketChangesTopic.name, marketChange.id, marketChange.asJson.noSpaces), new Callback() {
             override def onCompletion(recordMetadata: RecordMetadata, e: Exception): Unit = {
               if (e == null) {
                 cb(ZIO.unit)
