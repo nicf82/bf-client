@@ -34,19 +34,24 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
 
   override def open(socketDescriptor: BetfairConnection): UIO[(BetfairStreamCounterRef, Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])] = {
 
-    val requestSink: Sink[Throwable, RequestMessage, Nothing, Unit] = {
-      socketDescriptor.requestSink.contramapZIO { request =>
-        val m = request.asJson.noSpaces
-        for {
-          _ <- loggerAdapter.debug("Sending: " + m)
-        } yield m
-      }
-    }
-
     for {
       config <- appConfigService.getAppConfig.map(_.betfair)
       counter <- ZRef.make(0)
+      isAuthenticated <- Ref.make(false)
     } yield {
+
+      val requestSink: Sink[Throwable, RequestMessage, Nothing, Unit] = {
+        socketDescriptor.requestSink.contramapChunksZIO { (stringChunks: Chunk[RequestMessage]) =>
+          for {
+            isAuthenticated <- isAuthenticated.get
+            requests = for {
+              request <- stringChunks
+            } yield if(isAuthenticated) Some(request.asJson.noSpaces) else None
+            validRequests = requests.flatten
+            _ <- ZIO.foreach(validRequests)(request => loggerAdapter.debug("Sending: " + request))
+          } yield validRequests
+        }
+      }
 
       val responseStream = ZStream.succeed(1)
         .flatMap { _ =>
