@@ -32,7 +32,7 @@ object Pipelines:
       } yield marketChangeEnvelope
     }
 
-  val hydrateMarketChangeFromCache: ZPipeline[MarketChangeCache, Throwable, MarketChangeEnvelope, MarketChange] =
+  val hydrateMarketChangeFromCache: ZPipeline[MarketChangeCache, Throwable, MarketChangeEnvelope, MarketChangeEnvelope] =
     ZPipeline.mapZIO { marketChangeEnvelope =>
       for {
         cache        <- ZIO.service[MarketChangeCache]
@@ -41,7 +41,7 @@ object Pipelines:
           cache.updateAndGet(_.updatedWith(marketChange.id)(original => original.map(mergeMC(_, marketChange)))),  //Deltas are merged into cache//A SubImage replaces the cache
           cache.updateAndGet(_.updated(marketChange.id, marketChange))                                             //A SubImage replaces the cache
         )
-      } yield mcNew(marketChange.id)
+      } yield marketChangeEnvelope.withMarketChange(mcNew(marketChange.id))
     }
 
 

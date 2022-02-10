@@ -79,8 +79,8 @@ object Main extends ZIOAppDefault {
 
     _                                 <- mcmDeltasStream
                                            .via(extractMarketChangeEnvelopesPipeline)
-                                           .via(displayMarketChangePipeline)
                                            .via(hydrateMarketChangeFromCache)
+                                           .via(displayMarketChangePipeline)
                                            .run(managedKafkaService.marketChangeTopicSink).fork
 
     betfairStreamFiber                <- responseStream.run(betfairResponsesHubSink)  //Do this last after all subscriptions

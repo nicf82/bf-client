@@ -21,14 +21,14 @@ import io.circe.*
 import io.circe.syntax.*
 import io.circe.parser.*
 import net.carboninter.Main
-import net.carboninter.models.Command
+import net.carboninter.models.{Command, MarketChangeEnvelope}
 import org.apache.kafka.clients.admin.{Admin, AdminClientConfig, CreateTopicsOptions, NewTopic}
 import org.apache.kafka.common.config.TopicConfig
 
 trait ManagedKafkaService:
   def splitStreams: URIO[Clock & AppConfigService, (UStream[Command], UStream[MarketChangeMessage])]
   def marketChangeMessageDeltaTopicSink: ZSink[AppConfigService, Throwable, MarketChangeMessage, Nothing, Unit]
-  def marketChangeTopicSink: ZSink[AppConfigService, Throwable, MarketChange, Nothing, Unit]
+  def marketChangeTopicSink: ZSink[AppConfigService, Throwable, MarketChangeEnvelope, Nothing, Unit]
 
 
 object ManagedKafkaService:
@@ -187,12 +187,12 @@ case class LiveManagedKafkaService(
   }
 
 
-  override val marketChangeTopicSink: ZSink[AppConfigService, Throwable, MarketChange, Nothing, Unit] = ZSink.foreach[AppConfigService, Throwable, MarketChange] { marketChange =>
+  override val marketChangeTopicSink: ZSink[AppConfigService, Throwable, MarketChangeEnvelope, Nothing, Unit] = ZSink.foreach[AppConfigService, Throwable, MarketChangeEnvelope] { marketChangeEnvelope =>
     ZIO.asyncZIO[AppConfigService, Throwable, Unit] { cb =>
       for {
         topics <- ZIO.serviceWithZIO[AppConfigService](_.getAppConfig.map(_.kafka.topics))
         _ <- ZIO.attempt {
-          producer.send(new ProducerRecord[String, String](topics.marketChangesTopic.name, marketChange.id, marketChange.asJson.noSpaces), new Callback() {
+          producer.send(new ProducerRecord[String, String](topics.marketChangesTopic.name, marketChangeEnvelope.marketChange.id, marketChangeEnvelope.asJson.noSpaces), new Callback() {
             override def onCompletion(recordMetadata: RecordMetadata, e: Exception): Unit = {
               if (e == null) {
                 cb(ZIO.unit)
