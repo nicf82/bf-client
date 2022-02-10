@@ -9,7 +9,7 @@ import net.carboninter.models.*
 import org.slf4j.{Logger, LoggerFactory}
 import swagger.definitions.StatusMessage.StatusCode.Success
 import swagger.definitions.StatusMessage.{ErrorCode, StatusCode}
-import swagger.definitions.{AuthenticationMessage, ConnectionMessage, HeartbeatMessage, MarketChangeMessage, OrderChangeMessage, RequestMessage, ResponseMessage, StatusMessage}
+import swagger.definitions.{AuthenticationMessage, ConnectionMessage, HeartbeatMessage, MarketChangeMessage, MarketSubscriptionMessage, OrderChangeMessage, OrderSubscriptionMessage, RequestMessage, ResponseMessage, StatusMessage}
 import zio.{UIO, *}
 import zio.Duration.*
 import zio.stream.*
@@ -41,13 +41,13 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
     } yield {
 
       val requestSink: Sink[Throwable, RequestMessage, Nothing, Unit] = {
-        socketDescriptor.requestSink.contramapChunksZIO { (stringChunks: Chunk[RequestMessage]) =>
+        socketDescriptor.requestSink.contramapChunksZIO { (requests: Chunk[RequestMessage]) =>
           for {
             isAuthenticated <- isAuthenticated.get
-            requests = for {
-              request <- stringChunks
-            } yield if(isAuthenticated) Some(request.asJson.noSpaces) else None
-            validRequests = requests.flatten
+            optStrings = for {
+              request <- requests
+            } yield if(request.isInstanceOf[AuthenticationMessage] || isAuthenticated) Some(request.asJson.noSpaces) else None
+            validRequests = optStrings.flatten
             _ <- ZIO.foreach(validRequests)(request => loggerAdapter.debug("Sending: " + request))
           } yield validRequests
         }
@@ -81,6 +81,7 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
 
               case response@StatusMessage(id, Some(connectionsAvailable), errorMessage, errorCode, connectionId, Some(connectionClosed), Some(StatusCode.Success)) =>
                 for {
+                  _ <- isAuthenticated.update(_ => true)
                   _ <- loggerAdapter.info(s"Connected to stream api successfully, ${connectionsAvailable} connections available")
                 } yield (response, None)
 
