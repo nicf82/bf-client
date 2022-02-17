@@ -79,6 +79,7 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
                   _ <- loggerAdapter.error(s"$errorCode: $errorMessage - (terminating the connection): ")
                 } yield (response, None)
 
+              //FIXME - according to docs, I need ot discard MarketSubscriptionMessages with ids other than the one returned here as they are from another (earlier) subscription
               case response@StatusMessage(id, Some(connectionsAvailable), errorMessage, errorCode, connectionId, Some(connectionClosed), Some(StatusCode.Success)) =>
                 for {
                   _ <- isAuthenticated.update(_ => true)

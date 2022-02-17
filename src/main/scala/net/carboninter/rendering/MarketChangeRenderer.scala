@@ -4,6 +4,7 @@ import io.circe.syntax.*
 import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter
 import net.carboninter.betfair.*
+import net.carboninter.models.MarketChangeEnvelope
 import net.carboninter.syntax.*
 import org.slf4j.{Logger, LoggerFactory}
 import swagger.definitions.*
@@ -13,12 +14,11 @@ import java.util.Properties
 import scala.Console as C
 
 trait MarketChangeRenderer:
-  def renderMarketChangeMessage(mcm: MarketChangeMessage): RIO[Clock, Unit]
-  def renderMarketChange(mc: MarketChange): RIO[Clock, Unit]
+  def renderMarketChange(mc: MarketChangeEnvelope): RIO[Clock, Unit]
 
 
 object MarketChangeRenderer:
-  def live: ZLayer[AppConfigService & LoggerAdapter, Throwable, MarketChangeRenderer] = ZLayer.fromZIO {
+  def live: ZLayer[AppConfigService & LoggerAdapter, Nothing, MarketChangeRenderer] = ZLayer.fromZIO {
     for {
       loggerAdapter <- ZIO.service[LoggerAdapter]
       configService <- ZIO.service[AppConfigService]
@@ -30,16 +30,9 @@ class LiveMarketChangeRenderer(appConfigService: AppConfigService, loggerAdapter
 
   implicit val _: Logger = LoggerFactory.getLogger(getClass)
 
-  def renderMarketChangeMessage(mcm: MarketChangeMessage): RIO[Clock, Unit] = for {
-    publishTime    <- ZIO.succeed(mcm.pt)
-    changeType     =  mcm.ct
-    _              =  coutl(C.BOLD, C.MAGENTA)(s"\npt: ${publishTime.toOffsetDateTime}, ct: $changeType")
-    _              =  coutl(C.BOLD, C.MAGENTA)("======================================")
-    _              <- ZIO.foreach(mcm.mc.getOrElse(Nil).toList)(renderMarketChange(_))
-  } yield ()
-
-  def renderMarketChange(mc: MarketChange): RIO[Clock, Unit] = for {
-    marketId       <- ZIO.succeed(mc.id)
+  def renderMarketChange(marketChangeEnvelope: MarketChangeEnvelope): URIO[Clock, Unit] = for {
+    mc             <- ZIO.succeed(marketChangeEnvelope.marketChange)
+    marketId       =  mc.id
     marketDef      =  mc.marketDefinition
     venue          =  marketDef.flatMap(_.venue)
     marketTime     =  marketDef.flatMap(_.marketTime)
@@ -50,7 +43,7 @@ class LiveMarketChangeRenderer(appConfigService: AppConfigService, loggerAdapter
     _              <- ZIO.foreach(mc.rc.getOrElse(Nil).toList)(handleRunnerChange(marketId, _))
   } yield ()
 
-  def handleRunnerChange(marketId: String, runnerChange: RunnerChange): RIO[Clock, Unit] = for {
+  def handleRunnerChange(marketId: String, runnerChange: RunnerChange): URIO[Clock, Unit] = for {
     rcId           <- ZIO.succeed(runnerChange.id)
     _               = coutl(C.BOLD, C.YELLOW)(s"🐴 ${rcId}")
 
@@ -76,12 +69,12 @@ class LiveMarketChangeRenderer(appConfigService: AppConfigService, loggerAdapter
     _               = print("\n\n")
   } yield ()
 
-  def handlePriceSize(color: String)(values: Vector[PriceSize]): RIO[Clock, Unit] = ZIO.succeed {
+  def handlePriceSize(color: String)(values: Vector[PriceSize]): URIO[Clock, Unit] = ZIO.succeed {
     if(values.isEmpty) cout(color, C.UNDERLINED)("Empty list (removed)")
     else values.filter(_.size >= 2).map(a => cout(color)(" "+a))
   }
 
-  def handleLevelPriceSize(color: String)(values: Vector[LevelPriceSize]): RIO[Clock, Unit] = ZIO.succeed {
+  def handleLevelPriceSize(color: String)(values: Vector[LevelPriceSize]): URIO[Clock, Unit] = ZIO.succeed {
     if(values.isEmpty) cout(color, C.UNDERLINED)("Empty list (removed)")
     else values.filter(_.size >= 2).map(a => cout(color)(" "+a))
   }

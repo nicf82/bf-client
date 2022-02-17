@@ -29,7 +29,7 @@ object BetfairConnection:
         val socket = sslSocketFactory.createSocket(config.streamApi.host, config.streamApi.port).asInstanceOf[SSLSocket]
         socket.startHandshake()
         socket.setReceiveBufferSize(1024 * 1000 * 2) //shaves about 20s off firehose image.
-        socket.setSoTimeout(30*1000);
+        socket.setSoTimeout(30*1000)
         socket
       }
     } yield LiveBetfairConnection(socket)

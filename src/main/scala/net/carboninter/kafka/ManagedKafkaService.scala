@@ -2,7 +2,6 @@ package net.carboninter.kafka
 
 import net.carboninter.appconf.AppConfigService
 import net.carboninter.logging.LoggerAdapter
-import net.carboninter.betfair.BetfairIdentityService
 import org.apache.kafka.clients.producer
 import org.apache.kafka.clients.producer.*
 import org.apache.kafka.common.serialization.{Deserializer, Serde, Serdes, Serializer, StringDeserializer, StringSerializer}

@@ -35,7 +35,8 @@ object CommandPipelines {
     )
     MarketSubscriptionMessage(
       id = Some(id),
-      segmentationEnabled = None,
+      // https://docs.developer.betfair.com/display/1smk3cen4v3lu3yomq5qye0ni/Exchange+Stream+API#ExchangeStreamAPI-ChangeMessageSegmentation
+      segmentationEnabled = Some(false),  //May improve performance to enable this but it'll need to be handled per message
       clk = None,
       heartbeatMs = Some(hb),
       initialClk = None,

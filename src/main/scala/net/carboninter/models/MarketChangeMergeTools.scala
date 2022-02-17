@@ -102,13 +102,15 @@ object MarketChangeMergeTools {
   val mergeMarketDefinitionIfOriginalAndDelta = transformIfOriginalAndDelta(mergeMarketDefinition)
 
   def mergeMC(original: MarketChange, delta: MarketChange): MarketChange = {
-    original.copy(
-      rc               = mergeListItemsIfDelta(mergeRCIfDelta)(original => deltas => deltas.find(_.id==original.id))(original.rc, delta.rc),
-      img              = replaceIfOriginalAndDelta(original.img, delta.img),
-      tv               = replaceIfOriginalAndDelta(original.tv, delta.tv),
-      con              = replaceIfOriginalAndDelta(original.con, delta.con),
-      marketDefinition = mergeMarketDefinitionIfOriginalAndDelta(original.marketDefinition, delta.marketDefinition)
-    )
+    if(original.img.getOrElse(false)) delta  //img means replace rather than merge 
+    else
+      original.copy(
+        rc               = mergeListItemsIfDelta(mergeRCIfDelta)(original => deltas => deltas.find(_.id==original.id))(original.rc, delta.rc),
+        img              = replaceIfOriginalAndDelta(original.img, delta.img),
+        tv               = replaceIfOriginalAndDelta(original.tv, delta.tv),
+        con              = replaceIfOriginalAndDelta(original.con, delta.con),
+        marketDefinition = mergeMarketDefinitionIfOriginalAndDelta(original.marketDefinition, delta.marketDefinition)
+      )
   }
   val mergeMCIfDelta = transformIfDelta(mergeMC)
 

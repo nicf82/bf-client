@@ -20,10 +20,11 @@ import swagger.definitions.*
 import swagger.definitions.StatusMessage.StatusCode.*
 import swagger.definitions.MarketChangeMessage.Ct.*
 
+import java.io.{BufferedInputStream, InputStream}
 import java.lang.RuntimeException
 import scala.Console as C
 import java.time.Instant
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 
 object Main extends ZIOAppDefault {
 
@@ -78,7 +79,8 @@ object Main extends ZIOAppDefault {
                                            .run(requestSink).fork
 
     _                                 <- mcmDeltasStream
-                                           .via(extractMarketChangeEnvelopesPipeline)
+//                                           .via(extractMarketChangeEnvelopesPipeline)
+                                           .via(extractMarketChangeEnvelopesFunction)
                                            .via(hydrateMarketChangeFromCache)
                                            .via(displayMarketChangePipeline)
                                            .run(managedKafkaService.marketChangeTopicSink).fork

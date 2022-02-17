@@ -17,6 +17,7 @@
   </appender>
 
   <logger name="net.carboninter" level="INFO" />
+  <logger name="org.apache.kafka" level="WARN" />
 
   <root level="INFO">
     <appender-ref ref="STDOUT" />

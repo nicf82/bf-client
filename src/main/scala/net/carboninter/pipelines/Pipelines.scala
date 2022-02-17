@@ -1,5 +1,6 @@
 package net.carboninter.pipelines
 
+import net.carboninter.Main.getClass
 import net.carboninter.kafka.ManagedKafkaService
 import net.carboninter.rendering.MarketChangeRenderer
 import net.carboninter.betfair.*
@@ -17,10 +18,12 @@ import java.time.Instant
 object Pipelines:
 
   import MarketChangeMergeTools._
+  implicit val _: Logger = LoggerFactory.getLogger(getClass)
 
-  val collectMarketChangeMessages: ZPipeline[Any, Throwable, ResponseMessage, MarketChangeMessage] =
+  val collectMarketChangeMessages: ZPipeline[LoggerAdapter, Throwable, ResponseMessage, MarketChangeMessage] =
     ZPipeline.collect {
-      case msg: MarketChangeMessage if msg.ct != Some(Heartbeat) => msg
+      case msg: MarketChangeMessage if msg.ct != Some(Heartbeat) =>
+        msg
     }
 
   val extractMarketChangeEnvelopesPipeline: ZPipeline[Any, Throwable, MarketChangeMessage, MarketChangeEnvelope] =
@@ -32,11 +35,22 @@ object Pipelines:
       } yield marketChangeEnvelope
     }
 
-  val hydrateMarketChangeFromCache: ZPipeline[MarketChangeCache, Throwable, MarketChangeEnvelope, MarketChangeEnvelope] =
+  def extractMarketChangeEnvelopesFunction(s: UStream[MarketChangeMessage]) =
+
+    s.flatMap { marketChangeMessage =>
+      ZStream(marketChangeMessage) <*> ZStream.fromIterable(marketChangeMessage.mc.getOrElse(Nil).toList)
+    }.map { case (marketChangeMessage, marketChange) =>
+      MarketChangeEnvelope(marketChange, marketChangeMessage.ct != Some(Ct.SubImage))
+    }
+
+
+
+  val hydrateMarketChangeFromCache: ZPipeline[MarketChangeCache & LoggerAdapter, Throwable, MarketChangeEnvelope, MarketChangeEnvelope] =
     ZPipeline.mapZIO { marketChangeEnvelope =>
       for {
-        cache        <- ZIO.service[MarketChangeCache]
-        marketChange  = marketChangeEnvelope.marketChange
+        cache         <- ZIO.service[MarketChangeCache]
+        marketChange   = marketChangeEnvelope.marketChange
+        _ <- ZIO.when(marketChange.img.getOrElse(false))(LoggerAdapter.warn("marketChange.img was set - this was not a delta, but it should now be handled ok in mergeMC"))
         mcNew        <- ZIO.ifZIO(ZIO.succeed(marketChangeEnvelope.isDelta))(
           cache.updateAndGet(_.updatedWith(marketChange.id)(original => original.map(mergeMC(_, marketChange)))),  //Deltas are merged into cache//A SubImage replaces the cache
           cache.updateAndGet(_.updated(marketChange.id, marketChange))                                             //A SubImage replaces the cache
@@ -55,11 +69,11 @@ object Pipelines:
 //      } yield ()
 //    }
 
-  val displayMarketChangePipeline: ZPipeline[Clock & MarketChangeRenderer, Throwable, MarketChangeEnvelope, MarketChangeEnvelope] =
+  val displayMarketChangePipeline: ZPipeline[Clock & MarketChangeRenderer & LoggerAdapter, Throwable, MarketChangeEnvelope, MarketChangeEnvelope] =
     ZPipeline.mapZIO { marketChangeEnvelope =>
       for {
         marketChangePublisher <- ZIO.service[MarketChangeRenderer]
-        _ <- marketChangePublisher.renderMarketChange(marketChangeEnvelope.marketChange)
+//        _ <- marketChangePublisher.renderMarketChange(marketChangeEnvelope)
       } yield marketChangeEnvelope
     }
 
