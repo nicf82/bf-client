@@ -60,8 +60,8 @@ object ManagedKafkaService:
       val topics = admin.listTopics().names()
       val existingTopics = topics.get().asScala.toList
 
-      val desiredTopics = List(config.topics.marketChangeMessageDeltasTopic, config.topics.marketChangesTopic, config.topics.commandsTopic)
-                            .filter(t => !existingTopics.contains(t.name))
+      val desiredTopics = config.topics.all
+        .filter(t => !existingTopics.contains(t.name))
 
       if(!desiredTopics.isEmpty) {
         val compactTopicConfig = Map(TopicConfig.CLEANUP_POLICY_CONFIG -> TopicConfig.CLEANUP_POLICY_COMPACT)
@@ -112,7 +112,7 @@ object ManagedKafkaService:
       properties.setProperty(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "100")
       // create consumer
       val consumer = new KafkaConsumer[String, Json](properties)
-      val subscribeTopics = List(config.topics.marketChangeMessageDeltasTopic, config.topics.marketChangesTopic, config.topics.commandsTopic)
+      val subscribeTopics = config.topics.all
         .filter(_.subscribe).map(_.name)
       consumer.subscribe(subscribeTopics.asJava)
       consumer

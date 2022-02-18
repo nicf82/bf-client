@@ -4,7 +4,9 @@ case class AppConfig(betfair: Betfair, kafka: Kafka)
 
 case class Kafka(bootstrapServers: String, groupId: String, topics: Topics)
 
-case class Topics(marketChangeMessageDeltasTopic: Topic, marketChangesTopic: Topic, commandsTopic: Topic)
+case class Topics(marketChangeMessageDeltasTopic: Topic, marketChangesTopic: Topic, commandsTopic: Topic) {
+  def all = List(marketChangeMessageDeltasTopic, marketChangesTopic, commandsTopic)
+}
 case class Topic(name: String, partitions: Int, replication: Short, subscribe: Boolean, config: Option[Map[String,String]])
 
 case class Betfair(appKey: String, userName: String, password: String, heartbeatRemote: Int, identityApi: IdentityApi, streamApi: StreamApi)
