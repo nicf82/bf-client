@@ -69,7 +69,7 @@ object Pipelines:
   def updateLastRemoteHeartbeatPipeline(lastHeartbeat: Ref[Instant]): ZPipeline[Clock & Console, Throwable, ResponseMessage, ResponseMessage] =
     ZPipeline.collect {
       case message: MarketChangeMessage if message.ct == Some(Heartbeat) => message
-    } >>> ZPipeline.mapZIO { message =>
+    } >>> ZPipeline.mapZIO { (message: MarketChangeMessage) =>
       for {
         now <- ZIO.serviceWithZIO[Clock](_.instant)
         _ <- lastHeartbeat.update(_ => now) 

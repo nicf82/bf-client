@@ -70,8 +70,8 @@ object Main extends ZIOAppDefault {
 
     _                                 <- mcmDeltasStream
 //                                           .via(extractMarketChangeEnvelopesPipeline)
-                                           .via(extractMarketChangeEnvelopesFunction)
-                                           .via(hydrateMarketChangeFromCacheFunction)
+                                           .viaFunction(extractMarketChangeEnvelopesFunction)
+                                           .viaFunction(hydrateMarketChangeFromCacheFunction)
                                            .via(displayMarketChangePipeline)
                                            .run(managedKafkaService.marketChangeTopicSink).fork
 

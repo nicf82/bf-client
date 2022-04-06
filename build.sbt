@@ -7,8 +7,8 @@ version := "0.1"
 
 scalaVersion := "3.1.1"
 
-val zioVersion             = "2.0.0-RC1"
-val zioConfigVersion       = "3.0.0-RC1"
+val zioVersion             = "2.0.0-RC2"
+val zioConfigVersion       = "3.0.0-RC3"
 val logbackVersion         = "1.2.10"
 val logbackEncoderVersion  = "6.6"
 val asyncHttpClientVersion = "3.3.18"

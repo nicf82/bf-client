@@ -22,7 +22,7 @@ object CommandPipelines {
   def subscriptionCommandsPipeline(heartbeatRemote: Int, counter: BetfairStreamCounterRef): ZPipeline[LoggerAdapter, Throwable, Command, MarketSubscriptionMessage] =
     ZPipeline.collect[Command, SubscribeCommand] {
       case subscribeCommand: SubscribeCommand => subscribeCommand
-    } >>> ZPipeline.mapZIO { subscribeCommand =>
+    } >>> ZPipeline.mapZIO { (subscribeCommand: SubscribeCommand) =>
       for {
         _ <- LoggerAdapter.info("Subscribing to markets: " + subscribeCommand.marketIds.mkString(", "))
         i <- counter.getAndUpdate(_+1)

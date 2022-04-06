@@ -96,7 +96,7 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
               case msg =>
                 ZIO.succeed( (msg, None) )
             }
-            .tapSink(requestSink.contramap((m: (ResponseMessage, Option[RequestMessage])) => m._2.get).filterInput(_._2.isDefined), 16)
+            .tapSink(requestSink.contramap((m: (ResponseMessage, Option[RequestMessage])) => m._2.get).filterInput(_._2.isDefined))
             .map {
               case (response, _) => response
             }
