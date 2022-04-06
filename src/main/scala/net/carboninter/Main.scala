@@ -36,19 +36,9 @@ object Main extends ZIOAppDefault {
     crr <- streamService.open(socketDescriptor)
   } yield crr
 
-  //Send local heartbeat if we have not seen a remote heartbeat in the last 10 seconds
-  def localHeartbeatStream(lastRemoteHBAt: Ref[Instant], counter: BetfairStreamCounterRef) = ZStream.tick(10.seconds).drop(1).filterZIO { _ =>
-    for {
-      last <- lastRemoteHBAt.get
-      now <- ZIO.serviceWithZIO[Clock](_.instant)
-    } yield now.minusSeconds(10).isAfter(last)
-  }.mapZIO { _ =>
-    for {
-      i <- counter.getAndUpdate(_+1)
-    } yield HeartbeatMessage(Some(i))
-  }
 
   val program = for {
+    streamService                     <- ZIO.service[BetfairStreamService]
     managedKafkaService               <- ZIO.service[ManagedKafkaService]
     appConfig                         <- ZIO.serviceWithZIO[AppConfigService](_.getAppConfig)
     lastRemoteHBAt                    <- Ref.make(Instant.EPOCH)
@@ -70,10 +60,10 @@ object Main extends ZIOAppDefault {
                                            //.via(displayHeartbeatCarrotPipeline)
                                            .runDrain.fork
 
-    localHeartbeat                     = localHeartbeatStream(lastRemoteHBAt, counter)
+    //Send local heartbeat if we have not seen a remote heartbeat in the last 10 seconds
+    localHeartbeat                     = streamService.localHeartbeatStream(lastRemoteHBAt, counter)
 
-    (commandStream, mcmDeltasStream)
-                                      <- managedKafkaService.splitStreams
+    (commandStream, mcmDeltasStream)  <- managedKafkaService.splitStreams
 
     _                                 <- (localHeartbeat merge commandStream.via(subscriptionCommandsPipeline(appConfig.betfair.heartbeatRemote, counter)))
                                            .run(requestSink).fork
@@ -81,7 +71,7 @@ object Main extends ZIOAppDefault {
     _                                 <- mcmDeltasStream
 //                                           .via(extractMarketChangeEnvelopesPipeline)
                                            .via(extractMarketChangeEnvelopesFunction)
-                                           .via(hydrateMarketChangeFromCache)
+                                           .via(hydrateMarketChangeFromCacheFunction)
                                            .via(displayMarketChangePipeline)
                                            .run(managedKafkaService.marketChangeTopicSink).fork
 

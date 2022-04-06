@@ -25,7 +25,8 @@ import org.apache.kafka.clients.admin.{Admin, AdminClientConfig, CreateTopicsOpt
 import org.apache.kafka.common.config.TopicConfig
 
 trait ManagedKafkaService:
-  def splitStreams: URIO[Clock & AppConfigService, (UStream[Command], UStream[MarketChangeMessage])]
+  def splitStreams: ZIO[Clock & AppConfigService, Throwable, (UStream[Command], UStream[MarketChangeMessage])]
+  def unifiedStream: ZStream[Any, Throwable, ConsumerRecords[String, Json]]
   def marketChangeMessageDeltaTopicSink: ZSink[AppConfigService, Throwable, MarketChangeMessage, Nothing, Unit]
   def marketChangeTopicSink: ZSink[AppConfigService, Throwable, MarketChangeEnvelope, Nothing, Unit]
 
@@ -128,20 +129,15 @@ case class LiveManagedKafkaService(
 
   import ManagedKafkaService._
   implicit val _: Logger = LoggerFactory.getLogger(getClass)
+  
+  override def unifiedStream: ZStream[Any, Throwable, ConsumerRecords[String, Json]] =
+    ZStream.repeat(())
+      .mapZIO { _ =>
+        ZIO.attemptBlocking(consumer.poll(1000.millis))
+      }
+      .filter(_.count() > 0)
 
-  private def unifiedStream: UStream[ConsumerRecords[String, Json]] =
-    ZStream.asyncZIO[Any, Nothing, ConsumerRecords[String, Json]] { emit =>
-      (for {
-        consumerRecords  <- ZIO.attemptBlocking(consumer.poll(1000.millis))
-        recordCount      <- ZIO.succeed(consumerRecords.count())
-        _                <- ZIO.succeed {
-                              if(recordCount > 0) emit( ZIO.succeed(Chunk(consumerRecords)) )
-                              else ()
-                            }
-      } yield ()).forever.fork
-    }
-
-  override def splitStreams: URIO[Clock & AppConfigService, (UStream[Command], UStream[MarketChangeMessage])] = for {
+  override def splitStreams: ZIO[Clock & AppConfigService, Throwable, (UStream[Command], UStream[MarketChangeMessage])] = for {
     commandQueue   <- ZQueue.bounded[Command](256)
     mcmQueue       <- ZQueue.bounded[MarketChangeMessage](256)
     topics <- ZIO.serviceWithZIO[AppConfigService](_.getAppConfig.map(_.kafka.topics))
@@ -171,7 +167,6 @@ case class LiveManagedKafkaService(
       ZStream.fromQueue(commandQueue),
       ZStream.fromQueue(mcmQueue)
     )
-
 
   override val marketChangeMessageDeltaTopicSink: ZSink[AppConfigService, Throwable, MarketChangeMessage, Nothing, Unit] = ZSink.foreach[AppConfigService, Throwable, MarketChangeMessage] { marketChangeMessage =>
     ZIO.asyncZIO[AppConfigService, Throwable, Unit] { cb =>

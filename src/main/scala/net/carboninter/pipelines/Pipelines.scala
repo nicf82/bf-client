@@ -26,17 +26,8 @@ object Pipelines:
         msg
     }
 
-  val extractMarketChangeEnvelopesPipeline: ZPipeline[Any, Throwable, MarketChangeMessage, MarketChangeEnvelope] =
-    ZPipeline.mapChunks { marketChangeMessages =>
-      for {
-        marketChangeMessage  <- marketChangeMessages
-        marketChangeEnvelope <- marketChangeMessage.mc.getOrElse(Nil).toList
-                                  .map( MarketChangeEnvelope(_, marketChangeMessage.ct != Some(Ct.SubImage)) )
-      } yield marketChangeEnvelope
-    }
 
   def extractMarketChangeEnvelopesFunction(s: UStream[MarketChangeMessage]) =
-
     s.flatMap { marketChangeMessage =>
       ZStream(marketChangeMessage) <*> ZStream.fromIterable(marketChangeMessage.mc.getOrElse(Nil).toList)
     }.map { case (marketChangeMessage, marketChange) =>
@@ -44,9 +35,8 @@ object Pipelines:
     }
 
 
-
-  val hydrateMarketChangeFromCache: ZPipeline[MarketChangeCache & LoggerAdapter, Throwable, MarketChangeEnvelope, MarketChangeEnvelope] =
-    ZPipeline.mapZIO { marketChangeEnvelope =>
+  def hydrateMarketChangeFromCacheFunction(s: UStream[MarketChangeEnvelope]): ZStream[LoggerAdapter with MarketChangeCache, Nothing, MarketChangeEnvelope] =
+    s.mapZIO { marketChangeEnvelope =>
       for {
         cache         <- ZIO.service[MarketChangeCache]
         marketChange   = marketChangeEnvelope.marketChange
@@ -57,17 +47,6 @@ object Pipelines:
         )
       } yield marketChangeEnvelope.withMarketChange(mcNew(marketChange.id))
     }
-
-
-//  val displayMarketChangeMessagePipeline: ZPipeline[Clock & BetfairService & MarketChangeRenderer, Throwable, ResponseMessage, Unit] =
-//    ZPipeline.collect {
-//      case message: MarketChangeMessage if message.ct != Some(Heartbeat) => message
-//    } >>> ZPipeline.mapZIO { message =>
-//      for {
-//        marketChangePublisher <- ZIO.service[MarketChangeRenderer]
-//        _ <- marketChangePublisher.renderMarketChangeMessage(message)
-//      } yield ()
-//    }
 
   val displayMarketChangePipeline: ZPipeline[Clock & MarketChangeRenderer & LoggerAdapter, Throwable, MarketChangeEnvelope, MarketChangeEnvelope] =
     ZPipeline.mapZIO { marketChangeEnvelope =>

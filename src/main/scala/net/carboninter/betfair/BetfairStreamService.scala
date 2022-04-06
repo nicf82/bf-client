@@ -16,11 +16,13 @@ import zio.stream.*
 
 import java.io.{IOException, InputStream, OutputStream}
 import java.net.Socket
+import java.time.Instant
 import javax.net.SocketFactory
 import javax.net.ssl.{SSLParameters, SSLSocket, SSLSocketFactory}
 
 trait BetfairStreamService:
   def open(socketDescriptor: BetfairConnection): UIO[(BetfairStreamCounterRef, Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])]
+  def localHeartbeatStream(lastRemoteHBAt: Ref[Instant], counter: BetfairStreamCounterRef): ZStream[Clock, Nothing, HeartbeatMessage]
 
 
 object BetfairStreamService:
@@ -105,3 +107,14 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
     }
   }
 
+  override def localHeartbeatStream(lastRemoteHBAt: Ref[Instant], counter: BetfairStreamCounterRef): ZStream[Clock, Nothing, HeartbeatMessage] = 
+    ZStream.tick(10.seconds).drop(1).filterZIO { _ =>
+      for {
+        last <- lastRemoteHBAt.get
+        now <- ZIO.serviceWithZIO[Clock](_.instant)
+      } yield now.minusSeconds(10).isAfter(last)
+    }.mapZIO { _ =>
+      for {
+        i <- counter.getAndUpdate(_+1)
+      } yield HeartbeatMessage(Some(i))
+    }
