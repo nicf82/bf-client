@@ -1,6 +1,5 @@
 package net.carboninter
 
-import net.carboninter.Main.Environment
 import zio.*
 
 trait ErrorAdt

@@ -17,7 +17,7 @@ import zio.Duration.*
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, IOException, InputStream, OutputStream, PipedInputStream, PipedOutputStream}
 
-object BetfairStreamSpec extends DefaultRunnableSpec:
+object BetfairStreamSpec extends ZIOSpecDefault:
 
   import FakeBetfairConnection._
 
@@ -27,19 +27,21 @@ object BetfairStreamSpec extends DefaultRunnableSpec:
 
     val program = for {
       streamService <- ZIO.service[BetfairStreamService]
-      (simulateSocketRcv, readSocketSent, fakeSocket) <- buildFakeSocket
+      t <- buildFakeSocket
+      (simulateSocketRcv, readSocketSent, fakeSocket) = t
 
       _ <- simulateSocketRcv(msgs("""{"op":"connection","connectionId":"connection-id"}"""))
 
-      (counter, _, responseStream) <- streamService.open(fakeSocket)
+      t <- streamService.open(fakeSocket)
+      (counter, _, responseStream) = t
 
-      queue <- ZQueue.unbounded[Take[Throwable, ResponseMessage]]
+      queue <- Queue.unbounded[Take[Throwable, ResponseMessage]]
       fiber <- responseStream.runIntoQueue(queue).fork
 
       _ <- simulateSocketRcv(msgs("""{"op":"status","id":0,"statusCode":"SUCCESS","connectionClosed":false,"connectionsAvailable":9}"""))
 
       responses <- queue.take.flatMap(_.done)
-      _ <- ZIO.sleep(1.seconds) //This is to give time for the fake socket's out stream to register the change - try making it a ZStream[String] so we can take?
+      _ <- live(ZIO.sleep(1.seconds)) //This is to give time for the fake socket's out stream to register the change - try making it a ZStream[String] so we can take?
       _ <- fiber.interrupt
       str = readSocketSent().map(_.toChar).mkString
     } yield {
@@ -48,18 +50,18 @@ object BetfairStreamSpec extends DefaultRunnableSpec:
       assert(responses(1))(Assertion.equalTo( StatusMessage(Some(0),Some(9),None,None,None,Some(false),Some(Success)) ))
     }
 
-    program.provideSomeLayer[ZEnv & AppConfigService & LoggerAdapter & BetfairIdentityService](BetfairStreamService.live)
+    program.provideSome[AppConfigService & LoggerAdapter & BetfairIdentityService](liveEnvironment, Live.default, BetfairStreamService.live)
   }
 
-  val mockBetfairIdentityService: URLayer[Clock, BetfairIdentityService] = ZLayer.succeed(new BetfairIdentityService{
-    def getCredentials: RIO[Clock, Credentials] = for {
+  val mockBetfairIdentityService: ULayer[BetfairIdentityService] = ZLayer.succeed(new BetfairIdentityService{
+    def getCredentials: Task[Credentials] = for {
       now <- Clock.instant
       credentials <- ZIO.succeed(Credentials(Payload("cred-token", "app-key", "SUCCESS", ""), now.plus(5.minutes)))
     } yield credentials
   })
 
   override val spec = suite(getClass.getCanonicalName)(test1).provide(
-    liveEnvironment, LoggerAdapter.live, AppConfigService.live, mockBetfairIdentityService
+    LoggerAdapter.live, AppConfigService.live, mockBetfairIdentityService
   )
 
 class FakeBetfairConnection(socketInQueue: Queue[Byte], out: ByteArrayOutputStream) extends BetfairConnection:
@@ -82,7 +84,7 @@ class FakeBetfairConnection(socketInQueue: Queue[Byte], out: ByteArrayOutputStre
 
 object FakeBetfairConnection:
   def buildFakeSocket = for {
-    socketInQueue <- ZQueue.unbounded[Byte]
+    socketInQueue <- Queue.unbounded[Byte]
     out = new ByteArrayOutputStream(1024)
     fss = new FakeBetfairConnection(socketInQueue, out)
   } yield (socketInQueue.offerAll, () => out.toByteArray, fss)

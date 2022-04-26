@@ -21,24 +21,30 @@ import javax.net.SocketFactory
 import javax.net.ssl.{SSLParameters, SSLSocket, SSLSocketFactory}
 
 trait BetfairStreamService:
-  def open(socketDescriptor: BetfairConnection): UIO[(BetfairStreamCounterRef, Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])]
-  def localHeartbeatStream(lastRemoteHBAt: Ref[Instant], counter: BetfairStreamCounterRef): ZStream[Clock, Nothing, HeartbeatMessage]
+  def open(socketDescriptor: BetfairConnection): UIO[(BetfairStreamCounterRef, Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Any, Throwable, ResponseMessage])]
+  def localHeartbeatStream(lastRemoteHBAt: Ref[Instant], counter: BetfairStreamCounterRef): ZStream[Any, Nothing, HeartbeatMessage]
 
 
 object BetfairStreamService:
   val live: URLayer[AppConfigService & LoggerAdapter & BetfairIdentityService, BetfairStreamService] =
-    (LiveBetfairStreamService(_, _, _)).toLayer[BetfairStreamService]
+    ZLayer.fromZIO {
+      for {
+        appConfigService <- ZIO.service[AppConfigService]
+        loggerAdapter <- ZIO.service[LoggerAdapter]
+        betfairIdentityService <- ZIO.service[BetfairIdentityService]
+      } yield LiveBetfairStreamService(appConfigService, loggerAdapter, betfairIdentityService)
+    }
 
 
 case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAdapter: LoggerAdapter, betfairIdentityService: BetfairIdentityService) extends BetfairStreamService:
 
   implicit val logger: Logger = LoggerFactory.getLogger(getClass)
 
-  override def open(socketDescriptor: BetfairConnection): UIO[(BetfairStreamCounterRef, Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])] = {
+  override def open(socketDescriptor: BetfairConnection): UIO[(BetfairStreamCounterRef, Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Any, Throwable, ResponseMessage])] = {
 
     for {
       config <- appConfigService.getAppConfig.map(_.betfair)
-      counter <- ZRef.make(0)
+      counter <- Ref.make(0)
       isAuthenticated <- Ref.make(false)
     } yield {
 
@@ -61,7 +67,7 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
             .tap(m => loggerAdapter.debug("Received: " + m))
             .map(decode[ResponseMessage])
             .mapZIO(e => ZIO.fromEither(e))
-            .mapZIO[Clock, Throwable, (ResponseMessage, Option[RequestMessage])] {
+            .mapZIO[Any, Throwable, (ResponseMessage, Option[RequestMessage])] {
 
               //Request authentication in response to connection
               case response@ConnectionMessage(id, connectionId) => for {
@@ -107,11 +113,11 @@ case class LiveBetfairStreamService(appConfigService: AppConfigService, loggerAd
     }
   }
 
-  override def localHeartbeatStream(lastRemoteHBAt: Ref[Instant], counter: BetfairStreamCounterRef): ZStream[Clock, Nothing, HeartbeatMessage] = 
+  override def localHeartbeatStream(lastRemoteHBAt: Ref[Instant], counter: BetfairStreamCounterRef): ZStream[Any, Nothing, HeartbeatMessage] =
     ZStream.tick(10.seconds).drop(1).filterZIO { _ =>
       for {
         last <- lastRemoteHBAt.get
-        now <- ZIO.serviceWithZIO[Clock](_.instant)
+        now <- Clock.instant
       } yield now.minusSeconds(10).isAfter(last)
     }.mapZIO { _ =>
       for {

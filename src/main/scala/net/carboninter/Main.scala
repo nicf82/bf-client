@@ -30,7 +30,7 @@ object Main extends ZIOAppDefault {
 
   implicit val _: Logger = LoggerFactory.getLogger(getClass)
 
-  val betfairCounterReqSinkAndRespStream: ZIO[ZEnv & AppConfigService & BetfairConnection & BetfairStreamService, Throwable, (BetfairStreamCounterRef, Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Clock, Throwable, ResponseMessage])] = for {
+  val betfairCounterReqSinkAndRespStream: ZIO[AppConfigService & BetfairConnection & BetfairStreamService, Throwable, (BetfairStreamCounterRef, Sink[Throwable, RequestMessage, Nothing, Unit], ZStream[Any, Throwable, ResponseMessage])] = for {
     streamService <- ZIO.service[BetfairStreamService]
     socketDescriptor <- ZIO.service[BetfairConnection]
     crr <- streamService.open(socketDescriptor)
@@ -43,14 +43,14 @@ object Main extends ZIOAppDefault {
     appConfig                         <- ZIO.serviceWithZIO[AppConfigService](_.getAppConfig)
     lastRemoteHBAt                    <- Ref.make(Instant.EPOCH)
 
-    (counter, requestSink, responseStream)
-                                      <- betfairCounterReqSinkAndRespStream
+    t                                      <- betfairCounterReqSinkAndRespStream
+    (counter, requestSink, responseStream)  = t
 
-    betfairResponsesHub               <- ZHub.unbounded[ResponseMessage]
+    betfairResponsesHub               <- Hub.unbounded[ResponseMessage]
     betfairResponsesHubSink            = ZSink.fromHub(betfairResponsesHub)
 
-    kafkaChanges                       = ZStream.fromHub(betfairResponsesHub)
-    displayHeartbeat                   = ZStream.fromHub(betfairResponsesHub)
+    kafkaChanges                       = Stream.fromHub(betfairResponsesHub)
+    displayHeartbeat                   = Stream.fromHub(betfairResponsesHub)
 
     _                                 <- kafkaChanges.via(collectMarketChangeMessages)
                                            .run(managedKafkaService.marketChangeMessageDeltaTopicSink).fork
@@ -63,7 +63,8 @@ object Main extends ZIOAppDefault {
     //Send local heartbeat if we have not seen a remote heartbeat in the last 10 seconds
     localHeartbeat                     = streamService.localHeartbeatStream(lastRemoteHBAt, counter)
 
-    (commandStream, mcmDeltasStream)  <- managedKafkaService.splitStreams
+    t                                 <- managedKafkaService.splitStreams
+    (commandStream, mcmDeltasStream)   = t
 
     _                                 <- (localHeartbeat merge commandStream.via(subscriptionCommandsPipeline(appConfig.betfair.heartbeatRemote, counter)))
                                            .run(requestSink).fork
@@ -92,10 +93,10 @@ object Main extends ZIOAppDefault {
       }
     } yield throwable
 
-  val mcmCache: ULayer[MarketChangeCache] = Ref.make(Map.empty[String, MarketChange]).toLayer
+  val mcmCache: ULayer[MarketChangeCache] = ZLayer.fromZIO(Ref.make(Map.empty[String, MarketChange]))
 
-  def run: ZIO[Environment, Any, Any] = program.flatMapError(errorHandler)
-    .provideSome[Environment](BetfairIdentityService.live,
+  override def run = program.flatMapError(errorHandler)
+    .provide(BetfairIdentityService.live,
       BetfairConnection.live,
       BetfairStreamService.live,
       LoggerAdapter.live,

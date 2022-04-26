@@ -25,7 +25,7 @@ import org.apache.kafka.clients.admin.{Admin, AdminClientConfig, CreateTopicsOpt
 import org.apache.kafka.common.config.TopicConfig
 
 trait ManagedKafkaService:
-  def splitStreams: ZIO[Clock & AppConfigService, Throwable, (UStream[Command], UStream[MarketChangeMessage])]
+  def splitStreams: ZIO[AppConfigService, Throwable, (UStream[Command], UStream[MarketChangeMessage])]
   def unifiedStream: ZStream[Any, Throwable, ConsumerRecords[String, Json]]
   def marketChangeMessageDeltaTopicSink: ZSink[AppConfigService, Throwable, MarketChangeMessage, Nothing, Unit]
   def marketChangeTopicSink: ZSink[AppConfigService, Throwable, MarketChangeEnvelope, Nothing, Unit]
@@ -34,9 +34,9 @@ trait ManagedKafkaService:
 object ManagedKafkaService:
 
   val live: ZLayer[AppConfigService & LoggerAdapter, Throwable, ManagedKafkaService] = {
-    val producer = ZManaged.acquireReleaseWith(createKafkaProducer)(p => ZIO.succeed(p.close())).toLayer
-    val consumer = createKafkaConsumer.toLayer
-    val admin    = createKafkaAdmin.toLayer
+    val producer = ZLayer.fromZIO(ZIO.scoped(ZIO.acquireRelease(createKafkaProducer)(p => ZIO.succeed(p.close()))))
+    val consumer = ZLayer.fromZIO(createKafkaConsumer)
+    val admin    = ZLayer.fromZIO(createKafkaAdmin)
     (admin >>> (producer ++ consumer)) >>>
       ZLayer.fromZIO {
         for {
@@ -137,9 +137,9 @@ case class LiveManagedKafkaService(
       }
       .filter(_.count() > 0)
 
-  override def splitStreams: ZIO[Clock & AppConfigService, Throwable, (UStream[Command], UStream[MarketChangeMessage])] = for {
-    commandQueue   <- ZQueue.bounded[Command](256)
-    mcmQueue       <- ZQueue.bounded[MarketChangeMessage](256)
+  override def splitStreams: ZIO[AppConfigService, Throwable, (UStream[Command], UStream[MarketChangeMessage])] = for {
+    commandQueue   <- Queue.bounded[Command](256)
+    mcmQueue       <- Queue.bounded[MarketChangeMessage](256)
     topics <- ZIO.serviceWithZIO[AppConfigService](_.getAppConfig.map(_.kafka.topics))
     ts             <- unifiedStream.tap { cr =>
       for {

@@ -24,9 +24,7 @@ import scala.io.Source
 import cats.*
 import cats.implicits.*
 
-object ModelSpec  extends DefaultRunnableSpec:
-
-
+object ModelSpec  extends ZIOSpecDefault:
 
   def parseTest(file: File) = test("Successfully decode test response in: " + file.getName) {
 
@@ -39,6 +37,4 @@ object ModelSpec  extends DefaultRunnableSpec:
   lazy val dir = new File(getClass.getResource(s"/testResponses").getFile)
   lazy val files = dir.listFiles()
 
-  override lazy val spec = suite(getClass.getCanonicalName)(files.map(parseTest): _*).provide(
-    liveEnvironment
-  )
+  override lazy val spec = suite(getClass.getCanonicalName)(files.map(parseTest): _*)

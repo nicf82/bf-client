@@ -23,7 +23,7 @@ import java.time.Instant
 import scala.io.Source
 import java.nio.file.{Files, Paths}
 
-object MergeMarketSpec extends DefaultRunnableSpec:
+object MergeMarketSpec extends ZIOSpecDefault:
 
   val test2 = test("save stream as list of files") {
     val rawLines = Source.fromFile(getClass.getResource(s"/testMarketChangeMessages/testObjects1.json").getFile).getLines()
@@ -80,11 +80,9 @@ object MergeMarketSpec extends DefaultRunnableSpec:
     val delta    = json.asArray.get(1).asObject.get("value").get.as[MarketChangeMessage].toOption.get
 
     val result = MarketChangeMergeTools.mergeMCM(original, delta)
-    println(result.asJson)
+//    println(result.asJson)
 
     assertTrue(1==1)
   }
 
-  override lazy val spec = suite(getClass.getCanonicalName)(test1 /*, test3, test4, test5*/).provide(
-    liveEnvironment
-  )
+  override lazy val spec = suite(getClass.getCanonicalName)(test1 /*, test3, test4, test5*/)

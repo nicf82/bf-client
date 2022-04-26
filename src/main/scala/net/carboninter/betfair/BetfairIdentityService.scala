@@ -15,15 +15,14 @@ import io.circe.generic.auto.*
 import scala.concurrent.Future
 
 trait BetfairIdentityService {
-  def getCredentials: RIO[Clock, Credentials]
+  def getCredentials: Task[Credentials]
 }
 
 object BetfairIdentityService {
 
-  val live: URLayer[Clock & AppConfigService & LoggerAdapter, BetfairIdentityService] = ZLayer.fromZIO {
+  val live: URLayer[AppConfigService & LoggerAdapter, BetfairIdentityService] = ZLayer.fromZIO {
     for {
       ref           <- Ref.Synchronized.make(Credentials.empty)
-      clock         <- ZIO.service[Clock]
       loggerAdapter <- ZIO.service[LoggerAdapter]
       configService <- ZIO.service[AppConfigService]
     } yield LiveBetfairIdentityService(ref, configService, loggerAdapter)
@@ -36,7 +35,7 @@ case class LiveBetfairIdentityService(ref: Ref.Synchronized[Credentials], appCon
   implicit val _: Logger = LoggerFactory.getLogger(getClass)
   val backend: SttpBackend[Future, Any] = AsyncHttpClientFutureBackend()
 
-  override val getCredentials: RIO[Clock, Credentials] = for {
+  override val getCredentials: Task[Credentials] = for {
     now         <- Clock.instant
     credentials <- ref.updateSomeAndGetZIO {
       case credentials if credentials.expires.isBefore(now) => fetchCredentials
@@ -45,7 +44,7 @@ case class LiveBetfairIdentityService(ref: Ref.Synchronized[Credentials], appCon
 
   //TODO - implement keep alive within every 12 hours: https://docs.developer.betfair.com/pages/viewpage.action?pageId=3834909#Login&SessionManagement-KeepAlive
   
-  private val fetchCredentials: RIO[Clock, Credentials] = for {
+  private val fetchCredentials: Task[Credentials] = for {
     conf         <- appConfigService.getAppConfig.map(_.betfair)
     body         <- postRequest(conf.identityApi.uri, s"username=${conf.userName}&password=${conf.password}", conf.appKey)
     credentialsP <- ZIO.fromEither(parser.decode[Credentials.Payload](body)).mapError(new RuntimeException(_))

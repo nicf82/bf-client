@@ -5,14 +5,15 @@ name := "bf-client"
 
 version := "0.1"
 
-scalaVersion := "3.1.1"
+scalaVersion := "3.1.2"
 
-val zioVersion             = "2.0.0-RC2"
-val zioConfigVersion       = "3.0.0-RC3"
-val logbackVersion         = "1.2.10"
-val logbackEncoderVersion  = "6.6"
-val asyncHttpClientVersion = "3.3.18"
-val zioJsonVersion         = "0.3.0-RC2"
+val zioVersion             = "2.0.0-RC5"
+val zioTestVersion         = "2.0.0-RC5"
+val zioConfigVersion       = "3.0.0-RC8"
+val logbackVersion         = "1.2.11"
+val logbackEncoderVersion  = "7.1.1"
+val asyncHttpClientVersion = "3.5.2"
+val zioJsonVersion         = "0.3.0-RC7"
 val circeVersion           = "0.14.1"
 
 libraryDependencies += "org.apache.kafka" % "kafka-clients"  % "3.1.0"
@@ -34,8 +35,8 @@ libraryDependencies += "ch.qos.logback"       % "logback-core"             % log
 libraryDependencies += "ch.qos.logback"       % "logback-classic"          % logbackVersion
 libraryDependencies += "net.logstash.logback" % "logstash-logback-encoder" % logbackEncoderVersion
 
-libraryDependencies += "dev.zio" %% "zio-test"             % zioVersion % Test
-libraryDependencies += "dev.zio" %% "zio-test-sbt"         % zioVersion % Test
+libraryDependencies += "dev.zio" %% "zio-test"             % zioTestVersion % Test
+libraryDependencies += "dev.zio" %% "zio-test-sbt"         % zioTestVersion % Test
 
 testFrameworks += TestFramework("zio.test.sbt.ZTestFramework")
 

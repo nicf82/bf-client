@@ -22,7 +22,14 @@ object BetfairConnection:
   private val sslSocketFactory = SSLSocketFactory.getDefault
   implicit val _: Logger = LoggerFactory.getLogger(getClass)
 
-  val live: RLayer[AppConfigService & LoggerAdapter, BetfairConnection] = {
+//  val live: RLayer[AppConfigService & LoggerAdapter, BConnection] = {
+//    def acquire: ZIO[AppConfigService & LoggerAdapter, Throwable, BConnection] = ???
+//    def release(s: BConnection): ZIO[AppConfigService & LoggerAdapter, Nothing, Unit] = ???
+//    ZManaged.acquireReleaseWith(acquire)(release)
+//  }.toLayer
+
+
+  val live: RLayer[AppConfigService & LoggerAdapter, BetfairConnection] = ZLayer.fromZIO {
     def acquire: ZIO[AppConfigService & LoggerAdapter, Throwable, BetfairConnection] = for {
       config <- ZIO.serviceWithZIO[AppConfigService](_.getAppConfig.map(_.betfair))
       socket <- ZIO.attempt {
@@ -39,8 +46,11 @@ object BetfairConnection:
       _ <- s.close
     } yield ()
 
-    ZManaged.acquireReleaseWith(acquire)(release)
-  }.toLayer
+//    ZManaged.acquireReleaseWith(acquire)(release)
+
+    ZIO.scoped(ZIO.acquireRelease(acquire)(release))
+
+  }
 
 
 case class LiveBetfairConnection(socket: SSLSocket) extends BetfairConnection:

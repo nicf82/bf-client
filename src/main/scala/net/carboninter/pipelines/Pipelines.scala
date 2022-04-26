@@ -48,7 +48,7 @@ object Pipelines:
       } yield marketChangeEnvelope.withMarketChange(mcNew(marketChange.id))
     }
 
-  val displayMarketChangePipeline: ZPipeline[Clock & MarketChangeRenderer & LoggerAdapter, Throwable, MarketChangeEnvelope, MarketChangeEnvelope] =
+  val displayMarketChangePipeline: ZPipeline[MarketChangeRenderer & LoggerAdapter, Throwable, MarketChangeEnvelope, MarketChangeEnvelope] =
     ZPipeline.mapZIO { marketChangeEnvelope =>
       for {
         marketChangePublisher <- ZIO.service[MarketChangeRenderer]
@@ -56,7 +56,7 @@ object Pipelines:
       } yield marketChangeEnvelope
     }
 
-  val displayHeartbeatCarrotPipeline: ZPipeline[Console, Throwable, ResponseMessage, ResponseMessage] = ZPipeline.mapZIO { message =>
+  val displayHeartbeatCarrotPipeline: ZPipeline[Any, Throwable, ResponseMessage, ResponseMessage] = ZPipeline.mapZIO { message =>
     for {
       _ <- message match {
         case msg@MarketChangeMessage(id, Some(Heartbeat), clk, heartbeatMs, pt, initialClk, mc, conflateMs, segmentType, status) =>
@@ -66,12 +66,12 @@ object Pipelines:
     } yield message
   }
 
-  def updateLastRemoteHeartbeatPipeline(lastHeartbeat: Ref[Instant]): ZPipeline[Clock & Console, Throwable, ResponseMessage, ResponseMessage] =
+  def updateLastRemoteHeartbeatPipeline(lastHeartbeat: Ref[Instant]): ZPipeline[Any, Throwable, ResponseMessage, ResponseMessage] =
     ZPipeline.collect {
       case message: MarketChangeMessage if message.ct == Some(Heartbeat) => message
     } >>> ZPipeline.mapZIO { (message: MarketChangeMessage) =>
       for {
-        now <- ZIO.serviceWithZIO[Clock](_.instant)
+        now <- Clock.instant
         _ <- lastHeartbeat.update(_ => now) 
       } yield message
     }
